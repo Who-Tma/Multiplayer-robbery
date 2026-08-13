@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>اتصال دو گوشی با QR (P2P)</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#171b2e; --panel2:#1f2440; --accent:#6c8bff;
+    --accent2:#4ade80; --text:#eef0ff; --muted:#9aa0c0; --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0 auto; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;
+    padding:14px; padding-bottom:40px;
+    max-width:520px; width:100%;
+  }
+  h1{font-size:clamp(16px,4.5vw,19px); margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:16px; line-height:1.7;}
+  .card{
+    background:var(--panel); border-radius:14px; padding:16px; margin-bottom:14px;
+    border:1px solid #262b48; width:100%;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap;}
+  button{
+    background:var(--accent); color:#0b0e1c; border:none; border-radius:10px;
+    padding:13px 16px; font-size:14px; font-weight:700; cursor:pointer; flex:1;
+    min-width:120px; width:100%;
+  }
+  button.secondary{background:var(--panel2); color:var(--text); border:1px solid #333a5c;}
+  button.danger{background:var(--danger); color:#1a0b0b;}
+  button.ghost{background:transparent; color:var(--muted); border:1px solid #333a5c; flex:0 0 auto;}
+  button.next-chunk{background:var(--accent2); color:#062b12; margin-top:10px;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  .hidden{display:none !important;}
+
+  .stepbar{display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
+  .stepbar .badge{
+    background:var(--panel2); color:var(--accent); font-size:12px; font-weight:700;
+    padding:5px 10px; border-radius:999px; border:1px solid #333a5c; white-space:nowrap;
+  }
+  .stepbar .title{font-size:14px; font-weight:700;}
+
+  .status{
+    display:inline-flex; align-items:center; gap:6px; font-size:13px;
+    padding:6px 12px; border-radius:999px; background:var(--panel2);
+  }
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--danger); flex:0 0 auto;}
+  .dot.on{background:var(--accent2);}
+
+  .qrWrap{
+    background:#fff; border-radius:14px; padding:14px; display:flex;
+    align-items:center; justify-content:center; margin:14px 0; width:100%;
+  }
+  .qrWrap canvas{max-width:100%; height:auto; display:block;}
+  .qrProgress{text-align:center; font-size:12px; color:var(--muted); margin-top:-6px; margin-bottom:6px;}
+  .qrHint{text-align:center; font-size:12px; color:var(--muted); line-height:1.6; margin-bottom:4px;}
+  .scanMsg{
+    text-align:center; font-size:12.5px; color:var(--accent2); line-height:1.6;
+    margin-top:8px; min-height:18px;
+  }
+
+  #scanVideo, video{
+    width:100%; max-width:100%; aspect-ratio:3/4; object-fit:cover;
+    border-radius:12px; background:#000; display:block; margin-top:10px;
+  }
+  .scanBox{position:relative; width:100%; overflow:hidden; border-radius:12px;}
+  .scanOverlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+  }
+  .scanOverlay .frame{
+    width:62%; aspect-ratio:1/1; border:3px solid var(--accent2); border-radius:16px;
+    box-shadow:0 0 0 999px rgba(0,0,0,.35);
+  }
+  .scanHint{text-align:center; font-size:12px; color:var(--muted); margin-top:8px; line-height:1.6;}
+
+  #chatBox{
+    height:200px; overflow-y:auto; background:#0c0f1c; border-radius:10px;
+    padding:10px; margin-top:10px; display:flex; flex-direction:column; gap:6px;
+  }
+  .msg{padding:8px 12px; border-radius:10px; max-width:80%; font-size:14px; line-height:1.4; word-break:break-word;}
+  .msg.me{align-self:flex-start; background:var(--accent); color:#0b0e1c;}
+  .msg.them{align-self:flex-end; background:var(--panel2);}
+  .msg small{display:block; opacity:.6; font-size:10px; margin-top:2px;}
+  #msgInput{
+    width:100%; padding:12px; border-radius:10px; border:1px solid #2a2f52;
+    background:#0c0f1c; color:var(--text); font-size:14px; margin-top:8px;
+  }
+  .step{font-size:13px; color:var(--muted); margin-top:2px; line-height:1.6;}
+  .warn{font-size:12px; color:var(--danger); margin-top:8px;}
+
+  @media (max-width:360px){
+    .card{padding:12px;}
+    button{padding:11px 12px; font-size:13px;}
+  }
+  @media (min-width:600px){
+    body{padding:24px;}
+    .scanBox{max-width:420px; margin:0 auto;}
+    .qrWrap canvas{max-width:320px;}
+  }
+</style>
+</head>
+<body>
+
+  <h1>📷 اتصال دو گوشی با اسکن QR</h1>
+  <div class="sub">
+    هر دو گوشی رو به یک وای‌فای/هات‌اسپات مشترک وصل کن. اتصال کاملاً محلی و بدون اینترنت انجام می‌شه (WebRTC).
+    مراحل رو به ترتیب و جدا از هم انجام بده.
+  </div>
+
+  <div class="row" style="margin-bottom:14px;">
+    <span class="status"><span id="statusDot" class="dot"></span><span id="statusText">شروع نشده</span></span>
+  </div>
+
+  <!-- STEP: ROLE -->
+  <div id="step-role" class="card">
+    <div class="stepbar"><span class="badge">شروع</span><span class="title">نقش خودت رو انتخاب کن</span></div>
+    <div class="row">
+      <button id="btnHost">📶 من میزبانم (Host)</button>
+      <button id="btnGuest" class="secondary">📷 من مهمانم (Guest)</button>
+    </div>
+    <div class="step" style="margin-top:10px;">میزبان اول کد رو به‌صورت QR نشون می‌ده؛ مهمان اون رو اسکن می‌کنه.</div>
+  </div>
+
+  <!-- STEP: HOST - SHOW OFFER QR -->
+  <div id="step-host-show" class="card hidden">
+    <div class="stepbar"><span class="badge">میزبان ۱/۲</span><span class="title">این کد رو به مهمان نشون بده</span></div>
+    <div class="step">صفحه گوشی مهمان رو روی دوربین این گوشی نگیر! برعکسه: مهمان باید دوربینشو بگیره روی این QR.</div>
+    <div id="hostOfferQrWrap" class="qrWrap"><canvas id="hostOfferCanvas"></canvas></div>
+    <div id="hostOfferProgress" class="qrProgress"></div>
+    <div class="qrHint">کیو‌ار کدها رو به‌ترتیب با دوربین گوشی مهمان اسکن کن. بعد از تایید اسکن هر کد، روی دکمهٔ سبز بزن تا کد بعدی نشون داده بشه.</div>
+    <button id="hostOfferNextBtn" class="next-chunk hidden">نمایش کیو‌ار کد بعدی →</button>
+    <button id="btnHostNext" class="secondary" style="margin-top:10px;" disabled>مرحله بعد: اسکن پاسخ مهمان →</button>
+  </div>
+
+  <!-- STEP: HOST - SCAN ANSWER -->
+  <div id="step-host-scan" class="card hidden">
+    <div class="stepbar"><span class="badge">میزبان ۲/۲</span><span class="title">دوربین رو روی QR مهمان بگیر</span></div>
+    <div class="step">حالا نوبت توئه که QR جواب رو از گوشی مهمان اسکن کنی.</div>
+    <div class="scanBox">
+      <video id="hostScanVideo" playsinline muted></video>
+      <div class="scanOverlay"><div class="frame"></div></div>
+    </div>
+    <div id="hostScanProgress" class="scanHint">در حال جستجوی QR...</div>
+  </div>
+
+  <!-- STEP: GUEST - SCAN OFFER -->
+  <div id="step-guest-scan" class="card hidden">
+    <div class="stepbar"><span class="badge">مهمان ۱/۲</span><span class="title">دوربین رو روی QR میزبان بگیر</span></div>
+    <div class="step">صفحه‌ی QR گوشی میزبان رو بگیر جلوی دوربین این گوشی.</div>
+    <div class="scanBox">
+      <video id="guestScanVideo" playsinline muted></video>
+      <div class="scanOverlay"><div class="frame"></div></div>
+    </div>
+    <div id="guestScanProgress" class="scanHint">در حال جستجوی QR...</div>
+  </div>
+
+  <!-- STEP: GUEST - SHOW ANSWER -->
+  <div id="step-guest-show" class="card hidden">
+    <div class="stepbar"><span class="badge">مهمان ۲/۲</span><span class="title">این کد رو به میزبان نشون بده</span></div>
+    <div class="step">حالا میزبان باید این QR رو با دوربینش اسکن کنه تا اتصال کامل بشه.</div>
+    <div id="guestAnswerQrWrap" class="qrWrap"><canvas id="guestAnswerCanvas"></canvas></div>
+    <div id="guestAnswerProgress" class="qrProgress"></div>
+    <div class="qrHint">کیو‌ار کدها رو نوبتی با دوربین گوشی میزبان اسکن کنید. بعد از تایید اسکن هر کد، روی دکمهٔ سبز بزن تا کد بعدی نشون داده بشه.</div>
+    <button id="guestAnswerNextBtn" class="next-chunk hidden">نمایش کیو‌ار کد بعدی →</button>
+  </div>
+
+  <!-- STEP: GAME -->
+  <div id="step-game" class="card hidden" style="padding:0; overflow:hidden;">
+    <div class="stepbar" style="padding:16px 16px 0;"><span class="badge">✅</span><span class="title">وصل شد — بازی شروع شد</span></div>
+    <div id="gameWrap" style="width:100%; aspect-ratio:3/4; background:#000; margin-top:10px;">
+      <iframe id="gameFrame" src="" style="width:100%; height:100%; border:0; display:block;" allow="accelerometer; gyroscope"></iframe>
+    </div>
+    <div style="padding:12px 16px 16px;">
+      <button id="btnShowChat" class="secondary">💬 نمایش چت متنی</button>
+      <div id="chatBox" class="hidden" style="margin-top:10px;"></div>
+      <input id="msgInput" class="hidden" placeholder="یه چیزی بنویس..." style="margin-top:8px;" />
+      <button id="btnSend" class="hidden" style="margin-top:8px;">ارسال</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="btnReset" class="ghost">↺ شروع دوباره</button>
+  </div>
+  <div id="libWarn" class="warn hidden">
+    فایل‌های qrcode.js و jsQR.js پیدا نشدن. این دو فایل رو کنار index.html بذار (لینک‌ها در توضیحات پایین چت).
+  </div>
+
+<!-- These two libraries must sit next to this HTML file (see instructions). -->
+<script src="qrcode.js"></script>
+<script src="jsQR.js"></script>
+<script>
+(function(){
+  if(typeof qrcode === 'undefined' || typeof jsQR === 'undefined'){
+    document.getElementById('libWarn').classList.remove('hidden');
+  }
+
+  let pc, channel, isHost = false;
+  let camStream = null;
+  const $ = id => document.getElementById(id);
+  const statusDot = $('statusDot'), statusText = $('statusText');
+  const steps = ['step-role','step-host-show','step-host-scan','step-guest-scan','step-guest-show','step-game'];
+
+  function showStep(id){
+    steps.forEach(s => $(s).classList.toggle('hidden', s !== id));
+  }
+  function setStatus(text, connected){
+    statusText.textContent = text;
+    statusDot.classList.toggle('on', !!connected);
+  }
+
+  // ---------- WebRTC core ----------
+  function newPC(){
+    const conn = new RTCPeerConnection({ iceServers: [] }); // شبکه محلی، بدون STUN
+    conn.onconnectionstatechange = () => {
+      if(conn.connectionState === 'connected'){
+        setStatus('متصل ✅', true);
+        stopAllCameras();
+        enterGame();
+      } else if(['disconnected','failed','closed'].includes(conn.connectionState)){
+        setStatus('قطع شد', false);
+      }
+    };
+    return conn;
+  }
+
+  function waitIceComplete(conn){
+    return new Promise(resolve => {
+      if(conn.iceGatheringState === 'complete') return resolve();
+      conn.addEventListener('icegatheringstatechange', () => {
+        if(conn.iceGatheringState === 'complete') resolve();
+      });
+      setTimeout(resolve, 3000);
+    });
+  }
+
+  // Keep only IPv4 "host" candidates to shrink the SDP that goes into the QR code
+  function trimSDP(sdp){
+    return sdp.split('\r\n').filter(line => {
+      if(!line.startsWith('a=candidate')) return true;
+      const isHostType = line.includes(' typ host ');
+      const isIPv6 = line.includes(':') && /candidate:\S+ \d+ udp \d+ [0-9a-fA-F:]+ /.test(line);
+      return isHostType && !isIPv6;
+    }).join('\r\n');
+  }
+
+  function setupChannelEvents(){
+    channel.onopen = () => { setStatus('متصل ✅', true); stopAllCameras(); enterGame(); };
+    channel.onclose = () => setStatus('قطع شد', false);
+    channel.onmessage = (e) => {
+      // Text chat messages are plain strings; game messages are JSON envelopes
+      // tagged {__game:true, ...}. Route each to the right place.
+      let parsed = null;
+      try{ parsed = JSON.parse(e.data); }catch(err){ /* not JSON -> plain chat text */ }
+      if(parsed && parsed.__game){
+        const frame = $('gameFrame');
+        if(frame && frame.contentWindow) frame.contentWindow.postMessage({ type: 'game-recv', data: parsed.payload }, '*');
+      } else {
+        addMsg(e.data, false);
+      }
+    };
+  }
+
+  // ---------- Game embed (game/game.html) ----------
+  let gameStarted = false;
+  function enterGame(){
+    showStep('step-game');
+    const frame = $('gameFrame');
+    if(!gameStarted){
+      gameStarted = true;
+      frame.src = 'game/game.html';
+      frame.onload = () => {
+        frame.contentWindow.postMessage({ type: 'game-init', role: isHost ? 'host' : 'guest' }, '*');
+      };
+    } else {
+      frame.contentWindow && frame.contentWindow.postMessage({ type: 'game-init', role: isHost ? 'host' : 'guest' }, '*');
+    }
+  }
+
+  // Messages coming FROM the game iframe get wrapped and sent over the data channel
+  window.addEventListener('message', (e) => {
+    const msg = e.data;
+    if(msg && msg.type === 'game-send' && channel && channel.readyState === 'open'){
+      channel.send(JSON.stringify({ __game: true, payload: msg.data }));
+    }
+  });
+
+  $('btnShowChat').onclick = () => {
+    ['chatBox','msgInput','btnSend'].forEach(id => $(id).classList.toggle('hidden'));
+  };
+
+  function addMsg(text, mine){
+    const box = $('chatBox');
+    const div = document.createElement('div');
+    div.className = 'msg ' + (mine ? 'me' : 'them');
+    const time = new Date().toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'});
+    div.innerHTML = text.replace(/</g,'&lt;') + '<small>' + (mine ? 'من' : 'طرف مقابل') + ' • ' + time + '</small>';
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ---------- Chunked QR encode (manual paging, no auto-cycle) ----------
+  const CHUNK = 650;
+
+  function drawQrFrame(canvas, text){
+    const qr = qrcode(0, 'L');
+    qr.addData(text);
+    qr.make();
+    const count = qr.getModuleCount();
+    const cellSize = Math.floor(280 / count) || 4;
+    const size = cellSize * count;
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,size,size);
+    ctx.fillStyle = '#000';
+    for(let r=0; r<count; r++){
+      for(let c=0; c<count; c++){
+        if(qr.isDark(r,c)) ctx.fillRect(c*cellSize, r*cellSize, cellSize, cellSize);
+      }
+    }
+  }
+
+  // Splits `payload` into fixed QR frames (QR کد ۱, ۲, ...). The next frame is only
+  // shown when the person taps the "next" button — nothing changes automatically.
+  function startQrPager(canvas, progressEl, nextBtn, payload){
+    const sessionId = Math.random().toString(36).slice(2,6);
+    const raw = JSON.stringify(payload);
+    const chunks = [];
+    for(let i=0; i<raw.length; i += CHUNK) chunks.push(raw.slice(i, i+CHUNK));
+    const total = chunks.length;
+    let idx = 0;
+
+    function render(){
+      const frame = JSON.stringify({ id: sessionId, i: idx, n: total, d: chunks[idx] });
+      drawQrFrame(canvas, frame);
+      if(total > 1){
+        progressEl.textContent = 'کیو‌ار کد ' + (idx+1) + ' از ' + total;
+        if(idx < total - 1){
+          nextBtn.textContent = 'نمایش کیو‌ار کد ' + (idx+2) + ' →';
+          nextBtn.classList.remove('hidden');
+          nextBtn.disabled = false;
+        } else {
+          nextBtn.textContent = 'این آخرین کیو‌ار کد بود';
+          nextBtn.disabled = true;
+        }
+      } else {
+        progressEl.textContent = 'یک کیو‌ار کد — نیازی به کد بعدی نیست';
+        nextBtn.classList.add('hidden');
+      }
+    }
+
+    nextBtn.onclick = () => {
+      if(idx < total - 1){ idx++; render(); }
+    };
+    render();
+  }
+
+  // ---------- Chunked QR decode via camera ----------
+  let scanRAF = null;
+  function startScanning(videoEl, progressEl, scanMsgEl, onComplete){
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const received = {}; // sessionId -> { n, parts: {} }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(stream => {
+        camStream = stream;
+        videoEl.srcObject = stream;
+        videoEl.play();
+        tick();
+      })
+      .catch(() => {
+        progressEl.textContent = 'دسترسی به دوربین رد شد. اجازه دسترسی به دوربین رو در مرورگر فعال کن.';
+      });
+
+    function tick(){
+      if(videoEl.readyState === videoEl.HAVE_ENOUGH_DATA){
+        canvas.width = videoEl.videoWidth;
+        canvas.height = videoEl.videoHeight;
+        ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imgData.data, imgData.width, imgData.height);
+        if(code && code.data){
+          try{
+            const frame = JSON.parse(code.data);
+            if(frame && frame.id && typeof frame.i === 'number' && frame.n){
+              if(!received[frame.id]) received[frame.id] = { n: frame.n, parts: {} };
+              const isNew = !(frame.i in received[frame.id].parts);
+              received[frame.id].parts[frame.i] = frame.d;
+              const got = Object.keys(received[frame.id].parts).length;
+
+              if(isNew){
+                if(frame.n > 1){
+                  progressEl.textContent = 'دریافت شد: ' + got + ' از ' + frame.n + ' کیو‌ار کد';
+                  if(got < frame.n){
+                    scanMsgEl.textContent = 'کیو‌ار کد ' + (frame.i+1) + ' با موفقیت اسکن شد ✅ — حالا صبر کن کیو‌ار کد ' + (got+1) + ' نمایش داده بشه و دوباره دوربین رو بگیر روش.';
+                  } else {
+                    scanMsgEl.textContent = 'همهٔ کیو‌ار کدها اسکن شدن ✅';
+                  }
+                } else {
+                  scanMsgEl.textContent = 'کیو‌ار کد با موفقیت اسکن شد ✅';
+                }
+              }
+
+              if(got === frame.n){
+                let full = '';
+                for(let i=0; i<frame.n; i++) full += received[frame.id].parts[i];
+                stopScanning();
+                onComplete(JSON.parse(full));
+                return;
+              }
+            }
+          }catch(e){ /* invalid QR content, keep scanning */ }
+        }
+      }
+      scanRAF = requestAnimationFrame(tick);
+    }
+  }
+  function stopScanning(){
+    if(scanRAF) cancelAnimationFrame(scanRAF);
+    scanRAF = null;
+    if(camStream){ camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  }
+  function stopAllCameras(){ stopScanning(); }
+
+  // ---------- Role selection ----------
+  $('btnHost').onclick = async () => {
+    isHost = true;
+    setStatus('در حال ساخت کد...', false);
+    pc = newPC();
+    channel = pc.createDataChannel('chat');
+    setupChannelEvents();
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitIceComplete(pc);
+
+    const sdp = trimSDP(pc.localDescription.sdp);
+    showStep('step-host-show');
+    setStatus('QR آماده‌ست — نشون بده به مهمان', false);
+    startQrPager($('hostOfferCanvas'), $('hostOfferProgress'), $('hostOfferNextBtn'), { t: 'offer', s: sdp });
+    $('btnHostNext').disabled = false;
+  };
+
+  function beginGuestScan(){
+    showStep('step-guest-scan');
+    setStatus('دوربین رو بگیر روی QR میزبان', false);
+    startScanning($('guestScanVideo'), $('guestScanProgress'), $('guestScanProgress'), async (payload) => {
+      try{
+        pc = newPC();
+        pc.ondatachannel = (e) => { channel = e.channel; setupChannelEvents(); };
+        await pc.setRemoteDescription({ type: 'offer', sdp: payload.s });
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await waitIceComplete(pc);
+        const sdp = trimSDP(pc.localDescription.sdp);
+        showStep('step-guest-show');
+        setStatus('QR جواب آماده‌ست — نشون بده به میزبان', false);
+        startQrPager($('guestAnswerCanvas'), $('guestAnswerProgress'), $('guestAnswerNextBtn'), { t: 'answer', s: sdp });
+      }catch(err){
+        setStatus('کد میزبان نامعتبر بود، دوباره امتحان کن', false);
+        beginGuestScan();
+      }
+    });
+  }
+  $('btnGuest').onclick = () => { isHost = false; beginGuestScan(); };
+
+  function beginHostScan(){
+    showStep('step-host-scan');
+    setStatus('دوربین رو بگیر روی QR مهمان', false);
+    startScanning($('hostScanVideo'), $('hostScanProgress'), $('hostScanProgress'), async (payload) => {
+      try{
+        await pc.setRemoteDescription({ type: 'answer', sdp: payload.s });
+        setStatus('در حال اتصال...', false);
+      }catch(err){
+        setStatus('کد جواب نامعتبر بود، دوباره اسکن کن', false);
+        beginHostScan();
+      }
+    });
+  }
+  $('btnHostNext').onclick = () => { beginHostScan(); };
+
+  // ---------- Chat send ----------
+  function send(){
+    const input = $('msgInput');
+    const text = input.value.trim();
+    if(!text || !channel || channel.readyState !== 'open') return;
+    channel.send(text);
+    addMsg(text, true);
+    input.value = '';
+  }
+  $('btnSend').onclick = send;
+  $('msgInput').addEventListener('keydown', e => { if(e.key === 'Enter') send(); });
+
+  // ---------- Reset ----------
+  $('btnReset').onclick = () => {
+    stopAllCameras();
+    if(pc){ try{ pc.close(); }catch(e){} pc = null; }
+    channel = null;
+    $('chatBox').innerHTML = '';
+    setStatus('شروع نشده', false);
+    showStep('step-role');
+  };
+
+  showStep('step-role');
+})();
+</script>
+</body>
+</html>
