@@ -2,7 +2,7 @@
 <html lang="fa" dir="rtl">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>اتصال دو گوشی با QR (P2P)</title>
 <style>
   :root{
@@ -10,33 +10,36 @@
     --accent2:#4ade80; --text:#eef0ff; --muted:#9aa0c0; --danger:#ff6b6b;
   }
   *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
   body{
-    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    margin:0 auto; min-height:100vh; background:var(--bg); color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;
-    padding:16px; padding-bottom:40px;
+    padding:14px; padding-bottom:40px;
+    max-width:520px; width:100%;
   }
-  h1{font-size:18px; margin:0 0 4px;}
+  h1{font-size:clamp(16px,4.5vw,19px); margin:0 0 4px;}
   .sub{color:var(--muted); font-size:13px; margin-bottom:16px; line-height:1.7;}
   .card{
     background:var(--panel); border-radius:14px; padding:16px; margin-bottom:14px;
-    border:1px solid #262b48;
+    border:1px solid #262b48; width:100%;
   }
   .row{display:flex; gap:10px; flex-wrap:wrap;}
   button{
     background:var(--accent); color:#0b0e1c; border:none; border-radius:10px;
     padding:13px 16px; font-size:14px; font-weight:700; cursor:pointer; flex:1;
-    min-width:120px;
+    min-width:120px; width:100%;
   }
   button.secondary{background:var(--panel2); color:var(--text); border:1px solid #333a5c;}
   button.danger{background:var(--danger); color:#1a0b0b;}
   button.ghost{background:transparent; color:var(--muted); border:1px solid #333a5c; flex:0 0 auto;}
+  button.next-chunk{background:var(--accent2); color:#062b12; margin-top:10px;}
   button:disabled{opacity:.45; cursor:not-allowed;}
   .hidden{display:none !important;}
 
-  .stepbar{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .stepbar{display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;}
   .stepbar .badge{
     background:var(--panel2); color:var(--accent); font-size:12px; font-weight:700;
-    padding:5px 10px; border-radius:999px; border:1px solid #333a5c;
+    padding:5px 10px; border-radius:999px; border:1px solid #333a5c; white-space:nowrap;
   }
   .stepbar .title{font-size:14px; font-weight:700;}
 
@@ -44,19 +47,26 @@
     display:inline-flex; align-items:center; gap:6px; font-size:13px;
     padding:6px 12px; border-radius:999px; background:var(--panel2);
   }
-  .dot{width:8px; height:8px; border-radius:50%; background:var(--danger);}
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--danger); flex:0 0 auto;}
   .dot.on{background:var(--accent2);}
 
   .qrWrap{
     background:#fff; border-radius:14px; padding:14px; display:flex;
-    align-items:center; justify-content:center; margin:14px 0;
+    align-items:center; justify-content:center; margin:14px 0; width:100%;
   }
-  .qrProgress{text-align:center; font-size:12px; color:var(--muted); margin-top:-6px; margin-bottom:10px;}
+  .qrWrap canvas{max-width:100%; height:auto; display:block;}
+  .qrProgress{text-align:center; font-size:12px; color:var(--muted); margin-top:-6px; margin-bottom:6px;}
+  .qrHint{text-align:center; font-size:12px; color:var(--muted); line-height:1.6; margin-bottom:4px;}
+  .scanMsg{
+    text-align:center; font-size:12.5px; color:var(--accent2); line-height:1.6;
+    margin-top:8px; min-height:18px;
+  }
 
-  #scanVideo{
-    width:100%; border-radius:12px; background:#000; display:block; margin-top:10px;
+  #scanVideo, video{
+    width:100%; max-width:100%; aspect-ratio:3/4; object-fit:cover;
+    border-radius:12px; background:#000; display:block; margin-top:10px;
   }
-  .scanBox{position:relative;}
+  .scanBox{position:relative; width:100%; overflow:hidden; border-radius:12px;}
   .scanOverlay{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     pointer-events:none;
@@ -65,13 +75,13 @@
     width:62%; aspect-ratio:1/1; border:3px solid var(--accent2); border-radius:16px;
     box-shadow:0 0 0 999px rgba(0,0,0,.35);
   }
-  .scanHint{text-align:center; font-size:12px; color:var(--muted); margin-top:8px;}
+  .scanHint{text-align:center; font-size:12px; color:var(--muted); margin-top:8px; line-height:1.6;}
 
   #chatBox{
     height:200px; overflow-y:auto; background:#0c0f1c; border-radius:10px;
     padding:10px; margin-top:10px; display:flex; flex-direction:column; gap:6px;
   }
-  .msg{padding:8px 12px; border-radius:10px; max-width:80%; font-size:14px; line-height:1.4;}
+  .msg{padding:8px 12px; border-radius:10px; max-width:80%; font-size:14px; line-height:1.4; word-break:break-word;}
   .msg.me{align-self:flex-start; background:var(--accent); color:#0b0e1c;}
   .msg.them{align-self:flex-end; background:var(--panel2);}
   .msg small{display:block; opacity:.6; font-size:10px; margin-top:2px;}
@@ -81,6 +91,16 @@
   }
   .step{font-size:13px; color:var(--muted); margin-top:2px; line-height:1.6;}
   .warn{font-size:12px; color:var(--danger); margin-top:8px;}
+
+  @media (max-width:360px){
+    .card{padding:12px;}
+    button{padding:11px 12px; font-size:13px;}
+  }
+  @media (min-width:600px){
+    body{padding:24px;}
+    .scanBox{max-width:420px; margin:0 auto;}
+    .qrWrap canvas{max-width:320px;}
+  }
 </style>
 </head>
 <body>
@@ -111,7 +131,9 @@
     <div class="step">صفحه گوشی مهمان رو روی دوربین این گوشی نگیر! برعکسه: مهمان باید دوربینشو بگیره روی این QR.</div>
     <div id="hostOfferQrWrap" class="qrWrap"><canvas id="hostOfferCanvas"></canvas></div>
     <div id="hostOfferProgress" class="qrProgress"></div>
-    <button id="btnHostNext" class="secondary" disabled>مرحله بعد: اسکن پاسخ مهمان →</button>
+    <div class="qrHint">کیو‌ار کدها رو به‌ترتیب با دوربین گوشی مهمان اسکن کن. بعد از تایید اسکن هر کد، روی دکمهٔ سبز بزن تا کد بعدی نشون داده بشه.</div>
+    <button id="hostOfferNextBtn" class="next-chunk hidden">نمایش کیو‌ار کد بعدی →</button>
+    <button id="btnHostNext" class="secondary" style="margin-top:10px;" disabled>مرحله بعد: اسکن پاسخ مهمان →</button>
   </div>
 
   <!-- STEP: HOST - SCAN ANSWER -->
@@ -142,6 +164,8 @@
     <div class="step">حالا میزبان باید این QR رو با دوربینش اسکن کنه تا اتصال کامل بشه.</div>
     <div id="guestAnswerQrWrap" class="qrWrap"><canvas id="guestAnswerCanvas"></canvas></div>
     <div id="guestAnswerProgress" class="qrProgress"></div>
+    <div class="qrHint">کیو‌ار کدها رو نوبتی با دوربین گوشی میزبان اسکن کنید. بعد از تایید اسکن هر کد، روی دکمهٔ سبز بزن تا کد بعدی نشون داده بشه.</div>
+    <button id="guestAnswerNextBtn" class="next-chunk hidden">نمایش کیو‌ار کد بعدی →</button>
   </div>
 
   <!-- STEP: CHAT -->
@@ -233,10 +257,8 @@
     box.scrollTop = box.scrollHeight;
   }
 
-  // ---------- Chunked QR encode ----------
+  // ---------- Chunked QR encode (manual paging, no auto-cycle) ----------
   const CHUNK = 650;
-  const FRAME_MS = 550;
-  let qrTimer = null;
 
   function drawQrFrame(canvas, text){
     const qr = qrcode(0, 'L');
@@ -256,9 +278,9 @@
     }
   }
 
-  // Encodes `payload` (any JSON-serializable object) as a cycling series of QR frames.
-  // Returns a stop() function.
-  function startQrCycle(canvas, progressEl, payload){
+  // Splits `payload` into fixed QR frames (QR کد ۱, ۲, ...). The next frame is only
+  // shown when the person taps the "next" button — nothing changes automatically.
+  function startQrPager(canvas, progressEl, nextBtn, payload){
     const sessionId = Math.random().toString(36).slice(2,6);
     const raw = JSON.stringify(payload);
     const chunks = [];
@@ -266,22 +288,34 @@
     const total = chunks.length;
     let idx = 0;
 
-    function renderFrame(){
+    function render(){
       const frame = JSON.stringify({ id: sessionId, i: idx, n: total, d: chunks[idx] });
       drawQrFrame(canvas, frame);
-      progressEl.textContent = total > 1
-        ? ('فریم ' + (idx+1) + ' از ' + total + ' — تا همه رو نشون نده اسکن تموم نمی‌شه')
-        : 'یک فریم — نیازی به چرخش نیست';
-      idx = (idx + 1) % total;
+      if(total > 1){
+        progressEl.textContent = 'کیو‌ار کد ' + (idx+1) + ' از ' + total;
+        if(idx < total - 1){
+          nextBtn.textContent = 'نمایش کیو‌ار کد ' + (idx+2) + ' →';
+          nextBtn.classList.remove('hidden');
+          nextBtn.disabled = false;
+        } else {
+          nextBtn.textContent = 'این آخرین کیو‌ار کد بود';
+          nextBtn.disabled = true;
+        }
+      } else {
+        progressEl.textContent = 'یک کیو‌ار کد — نیازی به کد بعدی نیست';
+        nextBtn.classList.add('hidden');
+      }
     }
-    renderFrame();
-    if(total > 1) qrTimer = setInterval(renderFrame, FRAME_MS);
-    return () => { if(qrTimer) clearInterval(qrTimer); qrTimer = null; };
+
+    nextBtn.onclick = () => {
+      if(idx < total - 1){ idx++; render(); }
+    };
+    render();
   }
 
   // ---------- Chunked QR decode via camera ----------
   let scanRAF = null;
-  function startScanning(videoEl, progressEl, onComplete){
+  function startScanning(videoEl, progressEl, scanMsgEl, onComplete){
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     const received = {}; // sessionId -> { n, parts: {} }
@@ -309,9 +343,23 @@
             const frame = JSON.parse(code.data);
             if(frame && frame.id && typeof frame.i === 'number' && frame.n){
               if(!received[frame.id]) received[frame.id] = { n: frame.n, parts: {} };
+              const isNew = !(frame.i in received[frame.id].parts);
               received[frame.id].parts[frame.i] = frame.d;
               const got = Object.keys(received[frame.id].parts).length;
-              progressEl.textContent = 'دریافت شد: ' + got + ' از ' + frame.n + ' فریم';
+
+              if(isNew){
+                if(frame.n > 1){
+                  progressEl.textContent = 'دریافت شد: ' + got + ' از ' + frame.n + ' کیو‌ار کد';
+                  if(got < frame.n){
+                    scanMsgEl.textContent = 'کیو‌ار کد ' + (frame.i+1) + ' با موفقیت اسکن شد ✅ — حالا صبر کن کیو‌ار کد ' + (got+1) + ' نمایش داده بشه و دوباره دوربین رو بگیر روش.';
+                  } else {
+                    scanMsgEl.textContent = 'همهٔ کیو‌ار کدها اسکن شدن ✅';
+                  }
+                } else {
+                  scanMsgEl.textContent = 'کیو‌ار کد با موفقیت اسکن شد ✅';
+                }
+              }
+
               if(got === frame.n){
                 let full = '';
                 for(let i=0; i<frame.n; i++) full += received[frame.id].parts[i];
@@ -331,7 +379,7 @@
     scanRAF = null;
     if(camStream){ camStream.getTracks().forEach(t => t.stop()); camStream = null; }
   }
-  function stopAllCameras(){ stopScanning(); if(qrTimer){ clearInterval(qrTimer); qrTimer = null; } }
+  function stopAllCameras(){ stopScanning(); }
 
   // ---------- Role selection ----------
   $('btnHost').onclick = async () => {
@@ -348,15 +396,14 @@
     const sdp = trimSDP(pc.localDescription.sdp);
     showStep('step-host-show');
     setStatus('QR آماده‌ست — نشون بده به مهمان', false);
-    startQrCycle($('hostOfferCanvas'), $('hostOfferProgress'), { t: 'offer', s: sdp });
+    startQrPager($('hostOfferCanvas'), $('hostOfferProgress'), $('hostOfferNextBtn'), { t: 'offer', s: sdp });
     $('btnHostNext').disabled = false;
   };
 
-  $('btnGuest').onclick = () => {
-    isHost = false;
+  function beginGuestScan(){
     showStep('step-guest-scan');
     setStatus('دوربین رو بگیر روی QR میزبان', false);
-    startScanning($('guestScanVideo'), $('guestScanProgress'), async (payload) => {
+    startScanning($('guestScanVideo'), $('guestScanProgress'), $('guestScanProgress'), async (payload) => {
       try{
         pc = newPC();
         pc.ondatachannel = (e) => { channel = e.channel; setupChannelEvents(); };
@@ -367,29 +414,29 @@
         const sdp = trimSDP(pc.localDescription.sdp);
         showStep('step-guest-show');
         setStatus('QR جواب آماده‌ست — نشون بده به میزبان', false);
-        startQrCycle($('guestAnswerCanvas'), $('guestAnswerProgress'), { t: 'answer', s: sdp });
+        startQrPager($('guestAnswerCanvas'), $('guestAnswerProgress'), $('guestAnswerNextBtn'), { t: 'answer', s: sdp });
       }catch(err){
         setStatus('کد میزبان نامعتبر بود، دوباره امتحان کن', false);
-        showStep('step-guest-scan');
-        startScanning($('guestScanVideo'), $('guestScanProgress'), arguments.callee);
+        beginGuestScan();
       }
     });
-  };
+  }
+  $('btnGuest').onclick = () => { isHost = false; beginGuestScan(); };
 
-  $('btnHostNext').onclick = () => {
-    if(qrTimer){ clearInterval(qrTimer); qrTimer = null; }
+  function beginHostScan(){
     showStep('step-host-scan');
     setStatus('دوربین رو بگیر روی QR مهمان', false);
-    startScanning($('hostScanVideo'), $('hostScanProgress'), async (payload) => {
+    startScanning($('hostScanVideo'), $('hostScanProgress'), $('hostScanProgress'), async (payload) => {
       try{
         await pc.setRemoteDescription({ type: 'answer', sdp: payload.s });
         setStatus('در حال اتصال...', false);
       }catch(err){
         setStatus('کد جواب نامعتبر بود، دوباره اسکن کن', false);
-        startScanning($('hostScanVideo'), $('hostScanProgress'), arguments.callee);
+        beginHostScan();
       }
     });
-  };
+  }
+  $('btnHostNext').onclick = () => { beginHostScan(); };
 
   // ---------- Chat send ----------
   function send(){
