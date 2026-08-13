@@ -1,625 +1,256 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>سیگنال // اتصال دونفره</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>تست اتصال دو گوشی (P2P)</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;900&family=Space+Mono:wght@400;700&display=swap');
-
   :root{
-    --bg: #0a0e14;
-    --panel: #121924;
-    --panel-2: #1a2330;
-    --line: #26313f;
-    --ink: #eef3f7;
-    --dim: #7f92a3;
-    --lime: #c6ff3d;
-    --host: #ff9f45;
-    --guest: #4fd1c5;
-    --danger: #ff5d5d;
+    --bg:#0f1220; --panel:#171b2e; --panel2:#1f2440; --accent:#6c8bff;
+    --accent2:#4ade80; --text:#eef0ff; --muted:#9aa0c0; --danger:#ff6b6b;
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
-  html,body{height:100%;}
+  *{box-sizing:border-box;}
   body{
-    margin:0;
-    background:
-      radial-gradient(circle at 50% 0%, rgba(198,255,61,0.06), transparent 60%),
-      var(--bg);
-    color:var(--ink);
-    font-family:'Vazirmatn', sans-serif;
-    min-height:100vh;
-    display:flex;
-    flex-direction:column;
-    overflow-x:hidden;
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif;
+    padding:16px; padding-bottom:40px;
   }
-  .mono{ font-family:'Space Mono', monospace; direction:ltr; }
-
-  .screen{
-    flex:1;
-    display:none;
-    flex-direction:column;
-    padding:20px 20px calc(20px + env(safe-area-inset-bottom));
-    max-width:480px;
-    margin:0 auto;
-    width:100%;
-    min-height:100vh;
+  h1{font-size:18px; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:18px; line-height:1.7;}
+  .card{
+    background:var(--panel); border-radius:14px; padding:14px; margin-bottom:14px;
+    border:1px solid #262b48;
   }
-  .screen.active{ display:flex; animation:fade .35s ease; }
-  @keyframes fade{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
-
-  /* eyebrow / header */
-  .eyebrow{
-    font-family:'Space Mono', monospace;
-    font-size:11px;
-    letter-spacing:.18em;
-    color:var(--dim);
-    text-transform:uppercase;
-    direction:ltr;
-    text-align:right;
+  .row{display:flex; gap:10px; flex-wrap:wrap;}
+  button{
+    background:var(--accent); color:#0b0e1c; border:none; border-radius:10px;
+    padding:12px 16px; font-size:14px; font-weight:700; cursor:pointer; flex:1;
+    min-width:120px;
   }
-  h1{
-    font-size:30px;
-    font-weight:900;
-    margin:6px 0 4px;
-    letter-spacing:-.01em;
+  button.secondary{background:var(--panel2); color:var(--text); border:1px solid #333a5c;}
+  button.danger{background:var(--danger); color:#1a0b0b;}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  textarea{
+    width:100%; min-height:90px; background:#0c0f1c; color:var(--text);
+    border:1px solid #2a2f52; border-radius:10px; padding:10px; font-size:12px;
+    font-family:monospace; direction:ltr; resize:vertical; margin-top:8px;
   }
-  .sub{ color:var(--dim); font-size:14px; margin-bottom:28px; line-height:1.9;}
-
-  /* menu */
-  .menu-stack{ display:flex; flex-direction:column; gap:14px; margin-top:auto; margin-bottom:auto;}
-  .big-btn{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:18px;
-    padding:22px 20px;
-    color:var(--ink);
-    font-family:inherit;
-    font-size:19px;
-    font-weight:700;
-    text-align:right;
-    cursor:pointer;
-    position:relative;
-    overflow:hidden;
-    transition:transform .15s ease, border-color .15s ease;
+  label{font-size:13px; color:var(--muted); display:block; margin-top:10px;}
+  .status{
+    display:inline-flex; align-items:center; gap:6px; font-size:13px;
+    padding:6px 12px; border-radius:999px; background:var(--panel2);
   }
-  .big-btn:active{ transform:scale(.98); }
-  .big-btn .tag{
-    display:block;
-    font-family:'Space Mono',monospace;
-    direction:ltr;
-    text-align:right;
-    font-size:11px;
-    letter-spacing:.14em;
-    color:var(--dim);
-    margin-bottom:6px;
-    text-transform:uppercase;
+  .dot{width:8px; height:8px; border-radius:50%; background:var(--danger);}
+  .dot.on{background:var(--accent2);}
+  .hidden{display:none !important;}
+  #chatBox{
+    height:200px; overflow-y:auto; background:#0c0f1c; border-radius:10px;
+    padding:10px; margin-top:10px; display:flex; flex-direction:column; gap:6px;
   }
-  .big-btn.primary{ border-color:rgba(198,255,61,.35); }
-  .big-btn.primary::after{
-    content:"";
-    position:absolute; inset:0;
-    background:radial-gradient(circle at 90% 50%, rgba(198,255,61,.12), transparent 60%);
-    pointer-events:none;
+  .msg{padding:8px 12px; border-radius:10px; max-width:80%; font-size:14px; line-height:1.4;}
+  .msg.me{align-self:flex-start; background:var(--accent); color:#0b0e1c;}
+  .msg.them{align-self:flex-end; background:var(--panel2);}
+  .msg small{display:block; opacity:.6; font-size:10px; margin-top:2px;}
+  #msgInput{
+    width:100%; padding:12px; border-radius:10px; border:1px solid #2a2f52;
+    background:#0c0f1c; color:var(--text); font-size:14px; margin-top:8px;
   }
-  .big-btn:disabled{ opacity:.4; }
-
-  footer.note{
-    text-align:center;
-    color:var(--dim);
-    font-size:12px;
-    padding-top:18px;
-    line-height:1.8;
-  }
-
-  /* modal */
-  .overlay{
-    position:fixed; inset:0;
-    background:rgba(6,8,11,.72);
-    backdrop-filter:blur(4px);
-    display:none;
-    align-items:flex-end;
-    justify-content:center;
-    z-index:50;
-  }
-  .overlay.active{ display:flex; }
-  .sheet{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:22px 22px 0 0;
-    width:100%; max-width:480px;
-    padding:24px 20px calc(24px + env(safe-area-inset-bottom));
-    animation:slideup .25s ease;
-  }
-  @keyframes slideup{ from{transform:translateY(100%);} to{transform:translateY(0);} }
-  .sheet h2{ font-size:18px; margin:0 0 4px; }
-  .sheet p.hint{ color:var(--dim); font-size:13px; margin:0 0 18px; }
-  .role-btn{
-    width:100%;
-    display:flex; align-items:center; justify-content:space-between;
-    background:var(--panel-2);
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:16px 16px;
-    margin-bottom:10px;
-    color:var(--ink);
-    font-family:inherit; font-size:16px; font-weight:600;
-    cursor:pointer;
-  }
-  .role-btn .dot{ width:10px; height:10px; border-radius:50%; }
-  .role-btn.host .dot{ background:var(--host); }
-  .role-btn.guest .dot{ background:var(--guest); }
-  .cancel-link{
-    display:block; text-align:center; color:var(--dim);
-    padding-top:8px; font-size:14px; background:none; border:none; width:100%;
-    font-family:inherit; cursor:pointer;
-  }
-
-  /* pairing screen */
-  .role-pill{
-    display:inline-flex; align-items:center; gap:8px;
-    font-family:'Space Mono',monospace; font-size:12px; letter-spacing:.1em;
-    padding:6px 12px; border-radius:999px; border:1px solid var(--line);
-    color:var(--dim); width:fit-content; margin-bottom:18px; direction:ltr;
-  }
-  .role-pill .dot{ width:8px; height:8px; border-radius:50%; }
-  .role-pill.host .dot{ background:var(--host); box-shadow:0 0 8px var(--host); }
-  .role-pill.guest .dot{ background:var(--guest); box-shadow:0 0 8px var(--guest); }
-
-  .scan-box{
-    position:relative;
-    background:#000;
-    border-radius:20px;
-    overflow:hidden;
-    aspect-ratio:1/1;
-    border:1px solid var(--line);
-  }
-  .scan-box video{ width:100%; height:100%; object-fit:cover; }
-  .scan-frame{
-    position:absolute; inset:14%;
-    border:2px solid rgba(198,255,61,.55);
-    border-radius:16px;
-    box-shadow:0 0 0 999px rgba(0,0,0,.28);
-  }
-  .scan-frame::before{
-    content:""; position:absolute; left:0; right:0; top:0; height:2px;
-    background:var(--lime); box-shadow:0 0 10px var(--lime);
-    animation:scanline 2.2s linear infinite;
-  }
-  @keyframes scanline{ 0%{top:0;} 50%{top:100%;} 100%{top:0;} }
-  .cam-off{
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    flex-direction:column; gap:10px; color:var(--dim); font-size:13px; text-align:center; padding:20px;
-  }
-
-  .my-qr-block{
-    margin-top:16px;
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:18px;
-    padding:16px;
-    display:flex; gap:14px; align-items:center;
-  }
-  .qr-wrap{
-    background:#fff; padding:8px; border-radius:10px; flex-shrink:0;
-    width:96px; height:96px; display:flex; align-items:center; justify-content:center;
-  }
-  .qr-wrap img, .qr-wrap canvas{ width:80px; height:80px; }
-  .my-qr-text{ font-size:13px; color:var(--dim); line-height:1.7; }
-  .my-qr-text b{ color:var(--ink); }
-
-  .manual-toggle{
-    margin-top:12px; text-align:center; font-size:13px; color:var(--dim);
-    text-decoration:underline; cursor:pointer; background:none; border:none; font-family:inherit;
-  }
-  .manual-box{ display:none; margin-top:10px; gap:8px; flex-direction:column; }
-  .manual-box.active{ display:flex; }
-  .manual-box textarea{
-    background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
-    color:var(--ink); padding:10px; font-family:'Space Mono',monospace; font-size:11px;
-    min-height:64px; direction:ltr;
-  }
-  .manual-box button{
-    background:var(--panel-2); border:1px solid var(--line); color:var(--ink);
-    border-radius:10px; padding:10px; font-family:inherit; cursor:pointer; font-size:13px;
-  }
-
-  .status-list{ margin-top:20px; display:flex; flex-direction:column; gap:8px; }
-  .status-row{
-    display:flex; align-items:center; justify-content:space-between;
-    background:var(--panel); border:1px solid var(--line); border-radius:12px;
-    padding:12px 14px; font-size:14px;
-  }
-  .status-row .badge{
-    font-family:'Space Mono',monospace; font-size:11px; padding:4px 10px; border-radius:999px;
-    direction:ltr;
-  }
-  .badge.waiting{ background:rgba(127,146,163,.15); color:var(--dim); }
-  .badge.ok{ background:rgba(198,255,61,.15); color:var(--lime); }
-
-  .start-btn{
-    margin-top:22px;
-    width:100%;
-    padding:20px;
-    border-radius:16px;
-    border:1px solid var(--line);
-    background:var(--panel-2);
-    color:var(--dim);
-    font-family:inherit; font-weight:800; font-size:17px;
-    cursor:not-allowed;
-    transition:all .2s ease;
-  }
-  .start-btn.ready{
-    background:var(--lime); color:#0a0e14; border-color:var(--lime);
-    cursor:pointer; box-shadow:0 0 22px rgba(198,255,61,.25);
-  }
-  .start-btn.waiting-peer{
-    background:var(--panel-2); color:var(--host); border-color:var(--host); cursor:default;
-  }
-  .peer-note{ text-align:center; font-size:13px; color:var(--dim); margin-top:10px; min-height:18px; }
-
-  .back-link{
-    background:none; border:none; color:var(--dim); font-family:inherit;
-    font-size:13px; align-self:flex-start; margin-bottom:8px; cursor:pointer; padding:6px 0;
-  }
-
-  /* game screen */
-  .game-screen{ align-items:center; justify-content:center; text-align:center; }
-  .color-stage{
-    width:100%; flex:1; border-radius:24px; margin:16px 0;
-    display:flex; align-items:center; justify-content:center;
-    transition:background .25s ease; border:1px solid var(--line);
-    font-family:'Space Mono',monospace; font-size:14px; color:rgba(255,255,255,.7);
-  }
-  .color-input-row{ display:flex; gap:10px; }
-  .color-input-row input{
-    flex:1; background:var(--panel-2); border:1px solid var(--line); border-radius:14px;
-    padding:16px; color:var(--ink); font-family:inherit; font-size:16px;
-  }
-  .color-input-row button{
-    background:var(--lime); border:none; border-radius:14px; padding:0 22px;
-    font-family:inherit; font-weight:800; cursor:pointer;
-  }
-  .conn-pill{
-    display:flex; align-items:center; gap:8px; justify-content:center;
-    font-family:'Space Mono',monospace; font-size:11px; color:var(--dim); margin-bottom:14px;
-  }
-  .conn-pill .dot{ width:8px; height:8px; border-radius:50%; background:var(--lime); box-shadow:0 0 8px var(--lime); }
+  .step{font-size:12px; color:var(--muted); margin-top:4px;}
 </style>
 </head>
 <body>
 
-<!-- MENU -->
-<div class="screen active" id="screen-menu">
-  <div class="eyebrow">SIGNAL // LOCAL LINK</div>
-  <h1>بازی دونفره</h1>
-  <div class="sub">تست اتصال مستقیم بین دو گوشی، بدون سرور — روی یه وای‌فای هات‌اسپات مشترک.</div>
-
-  <div class="menu-stack">
-    <button class="big-btn" onclick="goto('screen-menu')" disabled style="display:none"></button>
-    <button class="big-btn" id="btn-single">
-      <span class="tag">MODE / 01</span>
-      تک‌نفره
-    </button>
-    <button class="big-btn primary" id="btn-two">
-      <span class="tag">MODE / 02</span>
-      دونفره
-    </button>
+  <h1>🔌 تست اتصال مستقیم دو گوشی</h1>
+  <div class="sub">
+    هر دو گوشی رو به یک وای‌فای/هات‌اسپات وصل کن، این فایل رو تو مرورگر هر دو باز کن.
+    بدون اینترنت و بدون سرور کار می‌کنه (WebRTC مستقیم). یکی «میزبان» و اون یکی «مهمان» می‌شه.
   </div>
 
-  <footer class="note">هر دو گوشی باید به یک وای‌فای یا هات‌اسپات وصل باشن.</footer>
-</div>
-
-<!-- ROLE MODAL -->
-<div class="overlay" id="overlay-role">
-  <div class="sheet">
-    <h2>نقش خودتو انتخاب کن</h2>
-    <p class="hint">یکی «میزبان» و اون یکی «کاربر» رو بزنه (اسم‌ها فقط برای تفکیکه).</p>
-    <button class="role-btn host" onclick="startPairing('host')">
-      <span>میزبان (Host)</span><span class="dot"></span>
-    </button>
-    <button class="role-btn guest" onclick="startPairing('guest')">
-      <span>کاربر (User)</span><span class="dot"></span>
-    </button>
-    <button class="cancel-link" onclick="closeRoleModal()">انصراف</button>
+  <div class="row">
+    <span class="status"><span id="statusDot" class="dot"></span><span id="statusText">وصل نشده</span></span>
   </div>
-</div>
 
-<!-- PAIRING SCREEN -->
-<div class="screen" id="screen-pairing">
-  <button class="back-link" onclick="resetAll()">‹ بازگشت</button>
-  <div class="role-pill" id="role-pill"><span class="dot"></span><span id="role-pill-text">HOST</span></div>
-  <h1 style="font-size:22px; margin-bottom:4px;">اتصال به گوشی مقابل</h1>
-  <div class="sub" style="margin-bottom:14px;">دوربین رو روی کیو‌آرکد اون یکی گوشی بگیر.</div>
-
-  <div class="scan-box">
-    <video id="video" autoplay playsinline muted></video>
-    <div class="scan-frame"></div>
-    <div class="cam-off" id="cam-off" style="display:none;">
-      دوربین در دسترس نیست.<br>از حالت دستی پایین صفحه استفاده کن.
+  <div id="roleSelect" class="card">
+    <div class="row">
+      <button id="btnHost">من میزبانم (Host)</button>
+      <button id="btnGuest" class="secondary">من مهمانم (Guest)</button>
     </div>
   </div>
 
-  <div class="my-qr-block">
-    <div class="qr-wrap" id="qr-wrap">
-      <span class="mono" style="font-size:10px; color:#888;">در حال آماده‌سازی…</span>
-    </div>
-    <div class="my-qr-text">کیو‌آرکد <b>خودت</b> — بذار گوشی مقابل اینو اسکن کنه.</div>
+  <!-- HOST FLOW -->
+  <div id="hostPanel" class="card hidden">
+    <b>حالت میزبان</b>
+    <div class="step">۱. دکمه زیر رو بزن تا کد اتصال ساخته بشه.</div>
+    <button id="btnCreateOffer">ساخت کد اتصال (Offer)</button>
+    <label>این کد رو برای گوشی مهمان بفرست (کپی و از راه بلوتوث/پیام/دستی بفرست):</label>
+    <textarea id="offerOut" readonly></textarea>
+    <button id="copyOffer" class="secondary">کپی کد</button>
+
+    <div class="step" style="margin-top:14px;">۲. کدی که گوشی مهمان بهت داد رو اینجا بچسبون:</div>
+    <label>کد پاسخ (Answer) از مهمان:</label>
+    <textarea id="answerIn" placeholder="اینجا پیست کن..."></textarea>
+    <button id="btnConnectHost">اتصال با این پاسخ</button>
   </div>
 
-  <button class="manual-toggle" onclick="toggleManual()">اسکن جواب نداد؟ حالت دستی (پیست کد)</button>
-  <div class="manual-box" id="manual-box">
-    <textarea id="manual-input" placeholder="کد دریافتی از گوشی مقابل رو اینجا پیست کن"></textarea>
-    <button onclick="applyManual()">اعمال کد</button>
+  <!-- GUEST FLOW -->
+  <div id="guestPanel" class="card hidden">
+    <b>حالت مهمان</b>
+    <div class="step">۱. کدی که گوشی میزبان بهت داد رو اینجا بچسبون:</div>
+    <label>کد اتصال (Offer) از میزبان:</label>
+    <textarea id="offerIn" placeholder="اینجا پیست کن..."></textarea>
+    <button id="btnCreateAnswer">ساخت کد پاسخ (Answer)</button>
+
+    <label>این کد رو برای گوشی میزبان بفرست:</label>
+    <textarea id="answerOut" readonly></textarea>
+    <button id="copyAnswer" class="secondary">کپی کد</button>
+    <div class="step">بعد از فرستادن، منتظر بمون تا میزبان وصل بشه.</div>
   </div>
 
-  <div class="status-list">
-    <div class="status-row">
-      <span>شما (<span id="me-role-label">—</span>)</span>
-      <span class="badge ok">آماده</span>
-    </div>
-    <div class="status-row">
-      <span>گوشی مقابل</span>
-      <span class="badge waiting" id="peer-badge">در حال جستجو…</span>
-    </div>
+  <!-- CHAT -->
+  <div id="chatPanel" class="card hidden">
+    <b>✅ وصل شد — پیام تست بفرست</b>
+    <div id="chatBox"></div>
+    <input id="msgInput" placeholder="یه چیزی بنویس..." />
+    <button id="btnSend" style="margin-top:8px;">ارسال</button>
   </div>
-
-  <button class="start-btn" id="start-btn" disabled onclick="pressStart()">شروع</button>
-  <div class="peer-note" id="peer-note"></div>
-</div>
-
-<!-- GAME / TEST SCREEN -->
-<div class="screen game-screen" id="screen-game">
-  <div class="conn-pill"><span class="dot"></span> LINK ESTABLISHED — <span id="game-role-label"></span></div>
-  <h1 style="font-size:24px;">تست همگام‌سازی رنگ</h1>
-  <div class="sub" style="margin-bottom:0;">یه اسم رنگ یا کد رنگ بنویس؛ صفحه‌ی هر دو گوشی همون رنگ می‌شه.</div>
-  <div class="color-stage" id="color-stage">منتظر رنگ…</div>
-  <div class="color-input-row">
-    <input type="text" id="color-input" placeholder="مثلاً: red یا #ff00aa" />
-    <button onclick="sendColor()">اعمال</button>
-  </div>
-</div>
 
 <script>
-/* ---------------- state ---------------- */
-let role = null;            // 'host' | 'guest'
-let pc = null, dc = null;
-let stream = null, scanning = false, rafId = null;
-let localStarted = false, remoteStarted = false, peerConnected = false;
+(function(){
+  let pc, channel, isHost = false;
 
-function $(id){ return document.getElementById(id); }
-function goto(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  $(id).classList.add('active');
-}
+  const $ = id => document.getElementById(id);
+  const statusDot = $('statusDot'), statusText = $('statusText');
+  const roleSelect = $('roleSelect'), hostPanel = $('hostPanel'), guestPanel = $('guestPanel'), chatPanel = $('chatPanel');
 
-/* ---------------- menu / modal ---------------- */
-$('btn-single').addEventListener('click', ()=>{
-  alert('حالت تک‌نفره هنوز ساخته نشده — این نسخه فقط برای تست اتصال دونفره‌ست.');
-});
-$('btn-two').addEventListener('click', ()=>{ $('overlay-role').classList.add('active'); });
-function closeRoleModal(){ $('overlay-role').classList.remove('active'); }
-
-function resetAll(){
-  try{ if(dc) dc.close(); }catch(e){}
-  try{ if(pc) pc.close(); }catch(e){}
-  stopScanning();
-  pc=null; dc=null; role=null; localStarted=false; remoteStarted=false; peerConnected=false;
-  $('start-btn').className='start-btn'; $('start-btn').disabled=true; $('start-btn').textContent='شروع';
-  $('peer-badge').className='badge waiting'; $('peer-badge').textContent='در حال جستجو…';
-  $('peer-note').textContent='';
-  $('qr-wrap').innerHTML='<span class="mono" style="font-size:10px;color:#888;">در حال آماده‌سازی…</span>';
-  goto('screen-menu');
-}
-
-/* ---------------- pairing entry ---------------- */
-async function startPairing(chosenRole){
-  role = chosenRole;
-  closeRoleModal();
-  goto('screen-pairing');
-  const pill = $('role-pill'); const label = $('role-pill-text'); const meLabel = $('me-role-label');
-  const gameLabel = $('game-role-label');
-  if(role==='host'){
-    pill.className='role-pill host'; label.textContent='HOST'; meLabel.textContent='میزبان';
-    gameLabel.textContent='HOST';
-  } else {
-    pill.className='role-pill guest'; label.textContent='USER'; meLabel.textContent='کاربر';
-    gameLabel.textContent='USER';
+  function setStatus(text, connected){
+    statusText.textContent = text;
+    statusDot.classList.toggle('on', !!connected);
   }
-  await startCamera();
-  createPeerConnection();
-  if(role==='host'){
-    await hostCreateOffer();
-    startScanning(onScan);
-  } else {
-    startScanning(onScan); // waiting to scan host's offer first
-  }
-}
 
-/* ---------------- camera / QR scan ---------------- */
-async function startCamera(){
-  try{
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    $('video').srcObject = stream;
-    $('cam-off').style.display='none';
-  }catch(e){
-    $('cam-off').style.display='flex';
-    $('manual-box').classList.add('active');
-  }
-}
-function startScanning(cb){
-  if(!stream) return;
-  scanning = true;
-  const video = $('video');
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  function tick(){
-    if(!scanning) return;
-    if(video.readyState === video.HAVE_ENOUGH_DATA){
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      ctx.drawImage(video,0,0,canvas.width,canvas.height);
-      const img = ctx.getImageData(0,0,canvas.width,canvas.height);
-      const code = jsQR(img.data, img.width, img.height);
-      if(code && code.data){
-        cb(code.data);
-        return; // stop after first hit; caller restarts if needed
+  function newPC(){
+    const conn = new RTCPeerConnection({ iceServers: [] }); // شبکه محلی؛ سرور STUN لازم نیست
+    conn.onconnectionstatechange = () => {
+      if(conn.connectionState === 'connected'){
+        setStatus('متصل ✅', true);
+        showChat();
+      } else if(['disconnected','failed','closed'].includes(conn.connectionState)){
+        setStatus('قطع شد', false);
       }
-    }
-    rafId = requestAnimationFrame(tick);
+    };
+    return conn;
   }
-  tick();
-}
-function stopScanning(){
-  scanning = false;
-  if(rafId) cancelAnimationFrame(rafId);
-  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
-}
 
-function toggleManual(){ $('manual-box').classList.toggle('active'); }
-function applyManual(){
-  const val = $('manual-input').value.trim();
-  if(!val) return;
-  onScan(val);
-}
-
-/* ---------------- WebRTC ---------------- */
-function createPeerConnection(){
-  pc = new RTCPeerConnection({ iceServers: [] });
-  if(role==='host'){
-    dc = pc.createDataChannel('game');
-    wireDataChannel();
-  } else {
-    pc.ondatachannel = (e)=>{ dc = e.channel; wireDataChannel(); };
+  function waitIceComplete(conn){
+    return new Promise(resolve => {
+      if(conn.iceGatheringState === 'complete') return resolve();
+      conn.addEventListener('icegatheringstatechange', () => {
+        if(conn.iceGatheringState === 'complete') resolve();
+      });
+      setTimeout(resolve, 3000); // fallback در صورت گیر کردن
+    });
   }
-}
 
-function waitIceComplete(pcRef){
-  return new Promise(resolve=>{
-    if(pcRef.iceGatheringState === 'complete') return resolve();
-    function check(){
-      if(pcRef.iceGatheringState === 'complete'){
-        pcRef.removeEventListener('icegatheringstatechange', check);
-        resolve();
-      }
-    }
-    pcRef.addEventListener('icegatheringstatechange', check);
-  });
-}
-
-function encodeSDP(desc){
-  return LZString.compressToEncodedURIComponent(JSON.stringify(desc));
-}
-function decodeSDP(str){
-  return JSON.parse(LZString.decompressFromEncodedURIComponent(str));
-}
-
-async function hostCreateOffer(){
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  await waitIceComplete(pc);
-  renderQR(encodeSDP(pc.localDescription));
-}
-
-async function guestCreateAnswer(offerDesc){
-  await pc.setRemoteDescription(offerDesc);
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
-  await waitIceComplete(pc);
-  renderQR(encodeSDP(pc.localDescription));
-}
-
-async function onScan(text){
-  stopScanning();
-  try{
-    const desc = decodeSDP(text);
-    if(role==='host'){
-      // this must be the guest's answer
-      await pc.setRemoteDescription(desc);
-    } else {
-      // this must be the host's offer
-      await guestCreateAnswer(desc);
-      // guest is done sending its answer; nothing left to scan
-    }
-  }catch(e){
-    alert('کد خوانده نشد یا نامعتبر بود. دوباره امتحان کن.');
-    startScanning(onScan);
+  function setupChannelEvents(){
+    channel.onopen = () => { setStatus('متصل ✅', true); showChat(); };
+    channel.onclose = () => setStatus('قطع شد', false);
+    channel.onmessage = (e) => addMsg(e.data, false);
   }
-}
 
-function wireDataChannel(){
-  dc.onopen = ()=>{
-    peerConnected = true;
-    $('peer-badge').className='badge ok';
-    $('peer-badge').textContent='متصل شد';
-    updateStartButton();
+  function showChat(){
+    hostPanel.classList.add('hidden');
+    guestPanel.classList.add('hidden');
+    chatPanel.classList.remove('hidden');
+  }
+
+  function addMsg(text, mine){
+    const box = $('chatBox');
+    const div = document.createElement('div');
+    div.className = 'msg ' + (mine ? 'me' : 'them');
+    const time = new Date().toLocaleTimeString('fa-IR', {hour:'2-digit', minute:'2-digit'});
+    div.innerHTML = text.replace(/</g,'&lt;') + '<small>' + (mine ? 'من' : 'طرف مقابل') + ' • ' + time + '</small>';
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // ---- Role selection ----
+  $('btnHost').onclick = () => {
+    isHost = true;
+    roleSelect.classList.add('hidden');
+    hostPanel.classList.remove('hidden');
+    setStatus('حالت میزبان', false);
   };
-  dc.onclose = ()=>{
-    peerConnected = false;
+  $('btnGuest').onclick = () => {
+    isHost = false;
+    roleSelect.classList.add('hidden');
+    guestPanel.classList.remove('hidden');
+    setStatus('حالت مهمان', false);
   };
-  dc.onmessage = (e)=>{
-    let msg;
-    try{ msg = JSON.parse(e.data); }catch(err){ return; }
-    if(msg.type === 'start'){
-      remoteStarted = true;
-      checkBothStarted();
-    } else if(msg.type === 'color'){
-      applyColorToStage(msg.value);
+
+  // ---- HOST ----
+  $('btnCreateOffer').onclick = async () => {
+    pc = newPC();
+    channel = pc.createDataChannel('chat');
+    setupChannelEvents();
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    await waitIceComplete(pc);
+
+    $('offerOut').value = JSON.stringify(pc.localDescription);
+    setStatus('منتظر کد پاسخ...', false);
+  };
+
+  $('btnConnectHost').onclick = async () => {
+    try{
+      const answer = JSON.parse($('answerIn').value.trim());
+      await pc.setRemoteDescription(answer);
+      setStatus('در حال اتصال...', false);
+    }catch(err){
+      alert('کد پاسخ معتبر نیست. دوباره چک کن کامل پیست شده باشه.');
     }
   };
-}
 
-function renderQR(dataStr){
-  const wrap = $('qr-wrap');
-  wrap.innerHTML = '';
-  new QRCode(wrap, { text: dataStr, width: 80, height: 80, correctLevel: QRCode.CorrectLevel.L });
-}
+  // ---- GUEST ----
+  $('btnCreateAnswer').onclick = async () => {
+    try{
+      const offer = JSON.parse($('offerIn').value.trim());
+      pc = newPC();
+      pc.ondatachannel = (e) => { channel = e.channel; setupChannelEvents(); };
 
-/* ---------------- start / handshake for game start ---------------- */
-function updateStartButton(){
-  const btn = $('start-btn');
-  if(peerConnected && !localStarted){
-    btn.disabled = false;
-    btn.className = 'start-btn ready';
-    btn.textContent = 'شروع';
+      await pc.setRemoteDescription(offer);
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      await waitIceComplete(pc);
+
+      $('answerOut').value = JSON.stringify(pc.localDescription);
+      setStatus('کد پاسخ آماده شد، بفرست به میزبان', false);
+    }catch(err){
+      alert('کد اتصال معتبر نیست. دوباره چک کن کامل پیست شده باشه.');
+    }
+  };
+
+  // ---- Copy buttons ----
+  function copyText(el){
+    el.select();
+    el.setSelectionRange(0, 99999);
+    try{ navigator.clipboard.writeText(el.value); }catch(e){ document.execCommand('copy'); }
   }
-}
-function pressStart(){
-  if(!peerConnected || localStarted) return;
-  localStarted = true;
-  try{ dc.send(JSON.stringify({type:'start'})); }catch(e){}
-  const btn = $('start-btn');
-  btn.className = 'start-btn waiting-peer';
-  btn.textContent = 'در انتظار طرف مقابل…';
-  checkBothStarted();
-}
-function checkBothStarted(){
-  const otherLabel = role==='host' ? 'کاربر (User)' : 'میزبان (Host)';
-  if(localStarted && remoteStarted){
-    $('peer-note').textContent = '';
-    stopScanning();
-    goto('screen-game');
-  } else if(localStarted && !remoteStarted){
-    $('peer-note').textContent = otherLabel + ' هنوز شروع نکرده…';
-  } else if(!localStarted && remoteStarted){
-    $('peer-note').textContent = otherLabel + ' شروع کرد — نوبت شماست.';
-  }
-}
+  $('copyOffer').onclick = () => copyText($('offerOut'));
+  $('copyAnswer').onclick = () => copyText($('answerOut'));
 
-/* ---------------- color sync test ---------------- */
-function applyColorToStage(val){
-  $('color-stage').style.background = val;
-  $('color-stage').textContent = val;
-}
-function sendColor(){
-  const val = $('color-input').value.trim();
-  if(!val) return;
-  applyColorToStage(val);
-  try{ dc.send(JSON.stringify({type:'color', value: val})); }catch(e){}
-  $('color-input').value = '';
-}
+  // ---- Chat send ----
+  function send(){
+    const input = $('msgInput');
+    const text = input.value.trim();
+    if(!text || !channel || channel.readyState !== 'open') return;
+    channel.send(text);
+    addMsg(text, true);
+    input.value = '';
+  }
+  $('btnSend').onclick = send;
+  $('msgInput').addEventListener('keydown', e => { if(e.key === 'Enter') send(); });
+
+})();
 </script>
 </body>
 </html>
