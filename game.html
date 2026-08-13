@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>بازی دونفره</title>
+<style>
+  :root{
+    --bg:#0f1220; --accent:#6c8bff; --accent2:#4ade80; --gold:#e8b95c; --text:#eef0ff; --muted:#9aa0c0;
+  }
+  html,body{margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,Arial,sans-serif; touch-action:none;}
+  #canvasHost{position:fixed; inset:0;}
+  canvas{display:block;}
+
+  #hud{
+    position:fixed; top:0; left:0; right:0; padding:10px 14px; display:flex;
+    justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5;
+  }
+  #hudRole{
+    font-size:12.5px; font-weight:700; padding:6px 12px; border-radius:999px;
+    background:rgba(15,18,32,.65); backdrop-filter:blur(4px); color:var(--text);
+    display:flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.08);
+  }
+  #hudRole .sw{width:9px; height:9px; border-radius:50%;}
+  #hudPeer{
+    font-size:12px; padding:6px 12px; border-radius:999px; background:rgba(15,18,32,.65);
+    color:var(--muted); border:1px solid rgba(255,255,255,.08); display:flex; align-items:center; gap:6px;
+  }
+  #hudPeer .dot{width:7px; height:7px; border-radius:50%; background:#555;}
+  #hudPeer .dot.on{background:var(--accent2); box-shadow:0 0 6px var(--accent2);}
+
+  #hint{
+    position:fixed; bottom:calc(150px + env(safe-area-inset-bottom)); left:0; right:0; text-align:center;
+    color:var(--muted); font-size:12px; pointer-events:none; z-index:5; transition:opacity .6s;
+    text-shadow:0 1px 3px rgba(0,0,0,.8);
+  }
+
+  /* Virtual joystick */
+  #joyWrap{
+    position:fixed; left:22px; bottom:calc(22px + env(safe-area-inset-bottom));
+    width:120px; height:120px; z-index:6;
+  }
+  #joyBase{
+    width:100%; height:100%; border-radius:50%; background:rgba(23,27,46,.55);
+    border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(2px);
+  }
+  #joyStick{
+    position:absolute; left:50%; top:50%; width:50px; height:50px; margin:-25px 0 0 -25px;
+    border-radius:50%; background:var(--accent); box-shadow:0 2px 10px rgba(0,0,0,.4);
+    transition:transform .05s linear;
+  }
+</style>
+</head>
+<body>
+  <div id="canvasHost"></div>
+
+  <div id="hud">
+    <div id="hudRole"><span class="sw" id="hudSw"></span><span id="hudRoleText">در حال اتصال...</span></div>
+    <div id="hudPeer"><span class="dot" id="hudPeerDot"></span><span id="hudPeerText">در انتظار طرف مقابل</span></div>
+  </div>
+
+  <div id="hint">با جوی‌استیک حرکت کن — این فقط یه نسخه‌ی آزمایشیه از حرکت هم‌زمان روی هر دو گوشی</div>
+
+  <div id="joyWrap">
+    <div id="joyBase"></div>
+    <div id="joyStick"></div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  // ================= Networking bridge (postMessage <-> parent's WebRTC channel) =================
+  let role = null; // 'host' | 'guest'
+  let peerConnected = false;
+  const outbox = [];
+
+  window.addEventListener('message', (e) => {
+    const msg = e.data;
+    if(!msg || typeof msg !== 'object') return;
+    if(msg.type === 'game-init'){
+      role = msg.role;
+      applyRole();
+    } else if(msg.type === 'game-recv'){
+      handleNetMessage(msg.data);
+    }
+  });
+
+  function sendNet(payload){
+    parent.postMessage({ type: 'game-send', data: payload }, '*');
+  }
+
+  function applyRole(){
+    const isHost = role === 'host';
+    document.getElementById('hudSw').style.background = isHost ? 'var(--accent)' : 'var(--accent2)';
+    document.getElementById('hudRoleText').textContent = isHost ? 'تو: میزبان (آبی)' : 'تو: مهمان (سبز)';
+    local.color = isHost ? 0x6c8bff : 0x4ade80;
+    remote.color = isHost ? 0x4ade80 : 0x6c8bff;
+    local.mesh.traverse(o => { if(o.isMesh) o.material.color.setHex(local.color); });
+    remote.mesh.traverse(o => { if(o.isMesh) o.material.color.setHex(remote.color); });
+    // Host spawns near one corner, guest near the opposite corner
+    const spawn = isHost ? {x:-6, z:-6, ry: Math.PI*0.25} : {x:6, z:6, ry: -Math.PI*0.75};
+    local.pos.set(spawn.x, 0, spawn.z);
+    local.mesh.rotation.y = spawn.ry;
+    // Tell the peer we're here
+    sendNet({ t:'hello' });
+    lastSend = 0;
+  }
+
+  function handleNetMessage(data){
+    if(!data || !data.t) return;
+    if(data.t === 'hello'){
+      peerConnected = true;
+      setPeerHud(true);
+      sendNet({ t:'hello-ack' });
+    } else if(data.t === 'hello-ack'){
+      peerConnected = true;
+      setPeerHud(true);
+    } else if(data.t === 'pos'){
+      peerConnected = true;
+      setPeerHud(true);
+      remote.target.set(data.x, 0, data.z);
+      remote.targetRy = data.ry;
+      remote.hasTarget = true;
+    }
+  }
+
+  function setPeerHud(on){
+    document.getElementById('hudPeerDot').classList.toggle('on', on);
+    document.getElementById('hudPeerText').textContent = on ? 'طرف مقابل وصله' : 'در انتظار طرف مقابل';
+  }
+
+  // ================= Three.js scene =================
+  const hostEl = document.getElementById('canvasHost');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0b0e1a);
+  scene.fog = new THREE.FogExp2(0x0b0e1a, 0.045);
+
+  const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 200);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  hostEl.appendChild(renderer.domElement);
+
+  // Lighting: dim moody warehouse + warm spotlight on the vault (signature element)
+  scene.add(new THREE.AmbientLight(0x33395c, 0.9));
+  const moon = new THREE.DirectionalLight(0x8ea2ff, 0.35);
+  moon.position.set(-8, 12, -6);
+  scene.add(moon);
+
+  const vaultSpot = new THREE.SpotLight(0xe8b95c, 3.2, 30, Math.PI/6, 0.5, 1.2);
+  vaultSpot.position.set(0, 9, -13.5);
+  vaultSpot.target.position.set(0, 1, -14.5);
+  vaultSpot.castShadow = true;
+  scene.add(vaultSpot, vaultSpot.target);
+
+  // Floor
+  const floorMat = new THREE.MeshStandardMaterial({ color:0x161a2c, roughness:0.95, metalness:0.05 });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(32, 32), floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const grid = new THREE.GridHelper(32, 32, 0x2a3050, 0x1a1e36);
+  grid.position.y = 0.01;
+  scene.add(grid);
+
+  // Boundary walls
+  const wallMat = new THREE.MeshStandardMaterial({ color:0x1f2440, roughness:0.9 });
+  function wall(w,h,d,x,y,z){
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), wallMat);
+    m.position.set(x,y,z); m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+    return m;
+  }
+  wall(32, 4, 0.6, 0, 2, -16);
+  wall(32, 4, 0.6, 0, 2, 16);
+  wall(0.6, 4, 32, -16, 2, 0);
+  wall(0.6, 4, 32, 16, 2, 0);
+
+  // Vault door — signature focal element
+  const vaultGroup = new THREE.Group();
+  const doorRing = new THREE.Mesh(
+    new THREE.TorusGeometry(2.6, 0.28, 16, 40),
+    new THREE.MeshStandardMaterial({ color:0xe8b95c, metalness:0.7, roughness:0.35, emissive:0x3a2a06 })
+  );
+  doorRing.position.set(0, 3.4, -15.6);
+  doorRing.castShadow = true;
+  vaultGroup.add(doorRing);
+  const doorDisc = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.3, 2.3, 0.35, 40),
+    new THREE.MeshStandardMaterial({ color:0x2a2f52, metalness:0.6, roughness:0.4 })
+  );
+  doorDisc.rotation.x = Math.PI/2;
+  doorDisc.position.set(0, 3.4, -15.75);
+  vaultGroup.add(doorDisc);
+  const spokes = new THREE.Group();
+  for(let i=0;i<6;i++){
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.1, 0.12), new THREE.MeshStandardMaterial({ color:0xe8b95c, metalness:0.7, roughness:0.35 }));
+    spoke.position.set(0, 3.4, -15.6);
+    spoke.rotation.z = (Math.PI/3) * i;
+    spokes.add(spoke);
+  }
+  vaultGroup.add(spokes);
+  scene.add(vaultGroup);
+
+  // Crates for warehouse atmosphere
+  const crateMat = new THREE.MeshStandardMaterial({ color:0x3a2f22, roughness:0.85 });
+  const crateGeo = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+  const cratePositions = [[-8,-3],[-9,-1.2],[7,4],[8.3,5.4],[-4,9],[3,-8],[9,-5],[-11,6]];
+  cratePositions.forEach(([x,z]) => {
+    const c = new THREE.Mesh(crateGeo, crateMat);
+    c.position.set(x, 0.55, z);
+    c.rotation.y = Math.random()*Math.PI;
+    c.castShadow = true; c.receiveShadow = true;
+    scene.add(c);
+  });
+
+  // ---- Player factory (cylinder body + sphere head, since CapsuleGeometry isn't in r128) ----
+  function makePlayer(color){
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.38, 0.42, 1.1, 16),
+      new THREE.MeshStandardMaterial({ color, roughness:0.5, metalness:0.15 })
+    );
+    body.position.y = 0.75;
+    body.castShadow = true;
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.32, 16, 16),
+      new THREE.MeshStandardMaterial({ color, roughness:0.5, metalness:0.15 })
+    );
+    head.position.y = 1.5;
+    head.castShadow = true;
+    const visor = new THREE.Mesh(
+      new THREE.BoxGeometry(0.5, 0.12, 0.08),
+      new THREE.MeshStandardMaterial({ color:0x0b0e1c, roughness:0.3 })
+    );
+    visor.position.set(0, 1.52, 0.28);
+    g.add(body, head, visor);
+    return g;
+  }
+
+  const local = { mesh: makePlayer(0x6c8bff), pos: new THREE.Vector3(-6,0,-6), color:0x6c8bff };
+  const remote = { mesh: makePlayer(0x4ade80), pos: new THREE.Vector3(6,0,6), target: new THREE.Vector3(6,0,6), targetRy:0, hasTarget:false, color:0x4ade80 };
+  local.mesh.position.copy(local.pos);
+  remote.mesh.position.copy(remote.pos);
+  scene.add(local.mesh, remote.mesh);
+
+  camera.position.set(0, 8, 8);
+  camera.lookAt(0,0,0);
+
+  // ================= Virtual joystick =================
+  const joyWrap = document.getElementById('joyWrap');
+  const joyStick = document.getElementById('joyStick');
+  let joyVec = {x:0, y:0};
+  let joyActive = false, joyId = null, joyStartX=0, joyStartY=0;
+  const JOY_MAX = 42;
+
+  function joyStart(id, x, y){ joyActive = true; joyId = id; joyStartX = x; joyStartY = y; }
+  function joyMove(x, y){
+    if(!joyActive) return;
+    let dx = x - joyStartX, dy = y - joyStartY;
+    const dist = Math.min(Math.hypot(dx,dy), JOY_MAX);
+    const ang = Math.atan2(dy, dx);
+    dx = Math.cos(ang)*dist; dy = Math.sin(ang)*dist;
+    joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+    joyVec.x = dx / JOY_MAX; joyVec.y = dy / JOY_MAX;
+  }
+  function joyEnd(){ joyActive = false; joyId = null; joyVec.x = 0; joyVec.y = 0; joyStick.style.transform = 'translate(0,0)'; }
+
+  joyWrap.addEventListener('touchstart', e => {
+    const t = e.changedTouches[0];
+    joyStart(t.identifier, t.clientX, t.clientY);
+    e.preventDefault();
+  }, {passive:false});
+  window.addEventListener('touchmove', e => {
+    for(const t of e.changedTouches){ if(t.identifier === joyId){ joyMove(t.clientX, t.clientY); e.preventDefault(); } }
+  }, {passive:false});
+  window.addEventListener('touchend', e => {
+    for(const t of e.changedTouches){ if(t.identifier === joyId) joyEnd(); }
+  });
+  // Mouse fallback for desktop testing
+  joyWrap.addEventListener('mousedown', e => { joyStart('m', e.clientX, e.clientY); });
+  window.addEventListener('mousemove', e => { if(joyId==='m') joyMove(e.clientX, e.clientY); });
+  window.addEventListener('mouseup', () => { if(joyId==='m') joyEnd(); });
+  // Keyboard (WASD/arrows) fallback
+  const keys = {};
+  window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+  // ================= Game loop =================
+  const BOUND = 15;
+  const SPEED = 5.2;
+  let lastT = performance.now();
+  let lastSend = 0;
+  const hint = document.getElementById('hint');
+  setTimeout(() => { hint.style.opacity = '0'; }, 5000);
+
+  function frame(now){
+    requestAnimationFrame(frame);
+    const dt = Math.min((now - lastT)/1000, 0.05);
+    lastT = now;
+
+    // Combine joystick + keyboard into a movement vector
+    let mx = joyVec.x, mz = joyVec.y;
+    if(keys['w']||keys['arrowup']) mz = -1;
+    if(keys['s']||keys['arrowdown']) mz = 1;
+    if(keys['a']||keys['arrowleft']) mx = -1;
+    if(keys['d']||keys['arrowright']) mx = 1;
+    const len = Math.hypot(mx, mz);
+    if(len > 1){ mx/=len; mz/=len; }
+
+    if(len > 0.05){
+      local.pos.x += mx * SPEED * dt;
+      local.pos.z += mz * SPEED * dt;
+      local.pos.x = Math.max(-BOUND, Math.min(BOUND, local.pos.x));
+      local.pos.z = Math.max(-BOUND, Math.min(BOUND, local.pos.z));
+      const targetRy = Math.atan2(mx, mz);
+      local.mesh.rotation.y += (angDiff(targetRy, local.mesh.rotation.y)) * Math.min(1, dt*10);
+    }
+    local.mesh.position.set(local.pos.x, 0, local.pos.z);
+
+    // Interpolate remote player toward last known network position
+    if(remote.hasTarget){
+      remote.pos.lerp(remote.target, Math.min(1, dt*8));
+      remote.mesh.position.set(remote.pos.x, 0, remote.pos.z);
+      remote.mesh.rotation.y += angDiff(remote.targetRy, remote.mesh.rotation.y) * Math.min(1, dt*8);
+    }
+
+    // Camera follows local player, fixed isometric-ish offset
+    const camOffset = new THREE.Vector3(0, 8, 8);
+    const desiredCam = local.pos.clone().add(camOffset);
+    camera.position.lerp(desiredCam, Math.min(1, dt*4));
+    camera.lookAt(local.pos.x, 0.8, local.pos.z);
+
+    // Throttled network send (~15Hz), only after role assigned
+    if(role && now - lastSend > 66){
+      lastSend = now;
+      sendNet({ t:'pos', x: local.pos.x, z: local.pos.z, ry: local.mesh.rotation.y });
+    }
+
+    renderer.render(scene, camera);
+  }
+  function angDiff(target, current){
+    let d = target - current;
+    while(d > Math.PI) d -= Math.PI*2;
+    while(d < -Math.PI) d += Math.PI*2;
+    return d;
+  }
+  requestAnimationFrame(frame);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+})();
+</script>
+</body>
+</html>
