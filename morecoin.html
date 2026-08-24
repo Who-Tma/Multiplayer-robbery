@@ -247,6 +247,90 @@
   .toast.show{ transform:translateX(-50%) translateY(0); }
   .toast.error{ border-color:rgba(255,77,94,0.4); color:#FFB9BF; }
 
+  /* ---------- Fallback ad overlay (iframe) ---------- */
+  .ad-overlay{
+    position:fixed; inset:0; z-index:100;
+    background:#000;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none;
+    transition:opacity .2s ease;
+  }
+  .ad-overlay.show{ opacity:1; pointer-events:auto; }
+
+  .ad-overlay iframe{
+    width:100%; height:100%;
+    border:0; background:#050505;
+  }
+
+  .ad-overlay-topbar{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:calc(12px + env(safe-area-inset-top, 0px)) 14px 10px;
+    z-index:2;
+    pointer-events:none;
+    background:linear-gradient(180deg, rgba(2,4,2,0.85), transparent);
+  }
+
+  .ad-overlay-label{
+    font-family:'Share Tech Mono', monospace;
+    font-size:10.5px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--text-2);
+  }
+
+  .ad-close-wrap{ pointer-events:auto; }
+
+  .ad-timer-ring{
+    width:34px; height:34px;
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(6,20,10,0.85);
+    border:1px solid var(--border);
+    box-shadow:0 0 16px -4px var(--green-glow);
+    position:relative;
+  }
+
+  .ad-timer-ring svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+  .ad-timer-ring circle{
+    fill:none;
+    stroke-width:2.5;
+  }
+  .ad-timer-ring .ring-bg{ stroke:rgba(0,255,102,0.15); }
+  .ad-timer-ring .ring-fg{
+    stroke:var(--green);
+    stroke-linecap:round;
+    transition:stroke-dashoffset 1s linear;
+  }
+
+  .ad-timer-num{
+    font-family:'VT323', monospace;
+    font-size:15px; color:var(--green);
+    position:relative; z-index:1;
+  }
+
+  .ad-close-btn{
+    width:34px; height:34px;
+    border-radius:50%;
+    border:1px solid var(--green);
+    background:var(--green);
+    color:#00160A;
+    font-size:16px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:0 0 20px -4px var(--green-glow);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  .ad-close-btn:active{ transform:scale(0.92); }
+  .ad-close-hint{
+    position:absolute; bottom:0; left:0; right:0;
+    text-align:center;
+    padding:10px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    font-size:11px; letter-spacing:1px; color:var(--text-2);
+    background:linear-gradient(0deg, rgba(2,4,2,0.85), transparent);
+    opacity:0; transition:opacity .3s ease;
+    pointer-events:none;
+  }
+  .ad-close-hint.show{ opacity:1; }
+
   @media (prefers-reduced-motion: reduce){
     #moreCoinBtn, .miner-btn{ animation:none; }
     .balance-card::before, .miner-dot{ animation:none; }
@@ -324,6 +408,24 @@
 
 <div class="float-layer" id="floatLayer"></div>
 <div class="toast" id="toast"></div>
+
+<div class="ad-overlay" id="adOverlay">
+  <iframe id="adIframe" src="about:blank" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <div class="ad-overlay-topbar">
+    <div class="ad-overlay-label">Sponsored</div>
+    <div class="ad-close-wrap">
+      <div class="ad-timer-ring" id="adTimerRing">
+        <svg width="34" height="34" viewBox="0 0 34 34">
+          <circle class="ring-bg" cx="17" cy="17" r="14.5"></circle>
+          <circle class="ring-fg" id="adRingFg" cx="17" cy="17" r="14.5"></circle>
+        </svg>
+        <span class="ad-timer-num" id="adTimerNum">15</span>
+      </div>
+      <button class="ad-close-btn" id="adCloseBtn" style="display:none;">&times;</button>
+    </div>
+  </div>
+  <div class="ad-close-hint" id="adCloseHint">Tap &times; to close and claim your coin</div>
+</div>
 
 <div class="more-coin-wrap">
   <div class="more-coin-inner">
@@ -515,6 +617,64 @@ document.querySelectorAll('.store-item').forEach(item => {
 });
 
 // ---------------------------------------------------------------------
+// Fallback ad overlay (shown when RichAds errors or has no fill)
+// Opens FALLBACK_AD_URL in an iframe, runs a 15s countdown top-right,
+// then swaps the ring for a close (×) button. Closing grants the reward.
+// ---------------------------------------------------------------------
+const FALLBACK_AD_URL = 'https://www.profitableratecpmnetwork.com/ytjxef4i8a?key=3b0ff046d792dd2fee552a7fe74d7077';
+
+const adOverlay   = document.getElementById('adOverlay');
+const adIframe    = document.getElementById('adIframe');
+const adTimerRing = document.getElementById('adTimerRing');
+const adRingFg    = document.getElementById('adRingFg');
+const adTimerNum  = document.getElementById('adTimerNum');
+const adCloseBtn  = document.getElementById('adCloseBtn');
+const adCloseHint = document.getElementById('adCloseHint');
+
+const RING_R = 14.5;
+const RING_CIRC = 2 * Math.PI * RING_R;
+adRingFg.style.strokeDasharray = RING_CIRC.toFixed(2);
+
+function openFallbackAd(){
+  return new Promise((resolve) => {
+    let seconds = 15;
+    let closedByUser = false;
+
+    adTimerNum.textContent = seconds;
+    adRingFg.style.strokeDashoffset = '0';
+    adTimerRing.style.display = 'flex';
+    adCloseBtn.style.display = 'none';
+    adCloseHint.classList.remove('show');
+    adIframe.src = FALLBACK_AD_URL;
+    adOverlay.classList.add('show');
+
+    function finishAndGrant(){
+      if (closedByUser) return;
+      closedByUser = true;
+      adOverlay.classList.remove('show');
+      adIframe.src = 'about:blank';
+      adCloseBtn.removeEventListener('click', finishAndGrant);
+      resolve();
+    }
+
+    const timerInterval = setInterval(() => {
+      seconds -= 1;
+      if (seconds <= 0){
+        clearInterval(timerInterval);
+        adTimerRing.style.display = 'none';
+        adCloseBtn.style.display = 'flex';
+        adCloseHint.classList.add('show');
+        adCloseBtn.addEventListener('click', finishAndGrant);
+        return;
+      }
+      adTimerNum.textContent = seconds;
+      const offset = RING_CIRC * (seconds / 15);
+      adRingFg.style.strokeDashoffset = offset.toFixed(2);
+    }, 1000);
+  });
+}
+
+// ---------------------------------------------------------------------
 // Bottom ad button — +1 coin per click, 5s cooldown
 // ---------------------------------------------------------------------
 moreBtn.addEventListener('click', () => {
@@ -532,7 +692,15 @@ moreBtn.addEventListener('click', () => {
       showToast('+1 coin added', false);
     })
     .catch(() => {
-      showToast('Ad failed to load, try again', true);
+      // Primary network errored or had no fill — fall back to the
+      // direct-link network shown in-app via iframe.
+      return openFallbackAd().then(() => {
+        balance += 1;
+        renderBalance();
+        spawnFloatingReward(1, moreBtn);
+        saveState();
+        showToast('+1 coin added', false);
+      });
     })
     .finally(() => {
       btnLabel.textContent = 'Watch ad · +1';
