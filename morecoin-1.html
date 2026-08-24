@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>MoreCoin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+<script src="https://richinfo.co/richpartners/telegram/js/tg-ob.js"></script>
+<script>
+  window.TelegramAdsController = new TelegramAdsController();
+  window.TelegramAdsController.initialize({
+    pubId: "1016341",
+    appId: "8616",
+  });
+</script>
+<style>
+  :root{
+    --bg:#020402;
+    --surface:rgba(6,20,10,0.72);
+    --surface-2:rgba(10,32,16,0.85);
+    --border:rgba(0,255,102,0.22);
+    --green:#00FF66;
+    --green-dim:#0AAE49;
+    --green-glow:rgba(0,255,102,0.45);
+    --text-1:#D9FFE4;
+    --text-2:#5FA97A;
+    --danger:#FF4D5E;
+    --radius-lg:14px;
+    --radius-md:10px;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg);
+    color:var(--text-1);
+    font-family:'Share Tech Mono', monospace;
+    overflow-x:hidden;
+  }
+
+  canvas#matrixRain{
+    position:fixed; inset:0; z-index:0;
+    opacity:0.38;
+  }
+
+  .app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    padding:22px 16px calc(140px + var(--safe-b));
+    position:relative;
+    z-index:1;
+  }
+
+  /* ---------- Header / balance ---------- */
+  .brand{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    font-size:12px; letter-spacing:4px; font-weight:400;
+    color:var(--green-dim); text-transform:uppercase;
+    margin-bottom:16px;
+  }
+  .brand .dot{width:5px;height:5px;background:var(--green);box-shadow:0 0 8px var(--green);}
+
+  .balance-card{
+    background:var(--surface);
+    backdrop-filter:blur(6px);
+    border:1px solid var(--border);
+    border-radius:var(--radius-lg);
+    padding:24px 18px 22px;
+    text-align:center;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 0 40px -12px var(--green-glow), inset 0 0 30px rgba(0,255,102,0.04);
+  }
+  .balance-card::before{
+    content:"";
+    position:absolute; left:0; right:0; top:0; height:2px;
+    background:linear-gradient(90deg, transparent, var(--green), transparent);
+    animation:scan 3s linear infinite;
+  }
+  @keyframes scan{
+    0%{ transform:translateX(-100%); }
+    100%{ transform:translateX(100%); }
+  }
+
+  .miner-box{ margin:0 auto 12px; height:74px; display:flex; align-items:center; justify-content:center; }
+
+  .miner-btn{
+    width:74px; height:74px;
+    border-radius:14px;
+    background:radial-gradient(circle at 35% 30%, rgba(0,255,102,0.22), rgba(0,20,10,0.9) 70%);
+    border:1px solid var(--green);
+    box-shadow:0 0 22px -4px var(--green-glow), inset 0 0 14px rgba(0,255,102,0.18);
+    color:var(--green);
+    font-family:'Share Tech Mono', monospace;
+    font-size:10.5px; letter-spacing:0.5px; text-transform:uppercase;
+    line-height:1.3;
+    cursor:pointer;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  .miner-btn:active{ transform:scale(0.94); }
+
+  .miner-active{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    width:74px; height:74px; border-radius:14px;
+    border:1px solid var(--green);
+    background:radial-gradient(circle at 35% 30%, rgba(0,255,102,0.18), rgba(0,20,10,0.9) 70%);
+    box-shadow:0 0 22px -4px var(--green-glow), inset 0 0 14px rgba(0,255,102,0.18);
+    justify-content:center;
+    font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--green);
+  }
+  .miner-dot{
+    width:7px; height:7px; border-radius:50%; background:var(--green);
+    box-shadow:0 0 8px var(--green);
+    animation:blink 1s ease-in-out infinite;
+  }
+  @keyframes blink{ 0%,100%{opacity:1;} 50%{opacity:0.25;} }
+
+  .balance-label{
+    font-size:11.5px; color:var(--text-2); letter-spacing:2px; text-transform:uppercase; margin-bottom:2px;
+  }
+  .balance-number{
+    font-family:'VT323', monospace;
+    font-size:42px; font-weight:400; line-height:1;
+    color:var(--green);
+    text-shadow:0 0 16px var(--green-glow), 0 0 2px var(--green);
+    letter-spacing:1px;
+    word-break:break-all;
+  }
+  .balance-sub{ font-size:11.5px; color:var(--text-2); margin-top:6px; letter-spacing:1px; }
+
+  /* ---------- Store section ---------- */
+  .section-title{
+    font-size:12px; letter-spacing:2px; text-transform:uppercase;
+    color:var(--green-dim); margin:26px 4px 12px;
+  }
+  .section-title .arrow{ color:var(--green); }
+
+  .store-item{
+    display:flex; align-items:center; gap:12px;
+    background:var(--surface);
+    backdrop-filter:blur(6px);
+    border:1px solid var(--border);
+    border-radius:var(--radius-md);
+    padding:13px;
+    margin-bottom:10px;
+  }
+
+  .store-icon{
+    width:42px; height:42px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    background:rgba(0,255,102,0.08);
+    border:1px solid var(--border);
+    color:var(--green);
+    font-family:'Share Tech Mono', monospace;
+    font-size:11px; letter-spacing:0.5px;
+  }
+
+  .store-info{ flex:1; min-width:0; }
+  .store-title{ font-size:13px; font-weight:400; color:var(--text-1); }
+  .store-desc{ font-size:11.5px; color:var(--text-2); margin-top:3px; }
+
+  .redeem-btn{
+    flex-shrink:0;
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    background:transparent;
+    border:1px solid var(--green);
+    border-radius:8px;
+    padding:8px 12px;
+    cursor:pointer;
+    transition:transform .12s ease, background .12s ease;
+  }
+  .redeem-btn:active{ transform:scale(0.95); background:rgba(0,255,102,0.12); }
+  .redeem-cost{ font-family:'VT323', monospace; font-size:15px; color:var(--green); line-height:1; }
+  .redeem-label{ font-size:9px; color:var(--text-2); letter-spacing:1px; text-transform:uppercase; }
+
+  /* ---------- Bottom ad button ---------- */
+  .more-coin-wrap{
+    position:fixed; left:0; right:0; bottom:0;
+    display:flex; justify-content:center;
+    padding:14px 16px calc(18px + var(--safe-b));
+    background:linear-gradient(180deg, transparent, var(--bg) 40%);
+    z-index:20;
+  }
+  .more-coin-inner{ width:100%; max-width:480px; text-align:center; }
+
+  #moreCoinBtn{
+    width:100%;
+    border:1px solid var(--green); cursor:pointer;
+    padding:16px 20px;
+    border-radius:12px;
+    font-family:'Share Tech Mono', monospace;
+    font-size:15px; font-weight:400; letter-spacing:2px; text-transform:uppercase;
+    color:#00160A;
+    background:var(--green);
+    box-shadow:0 0 28px -6px var(--green-glow);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition:transform .12s ease, opacity .2s ease;
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  #moreCoinBtn:active{ transform:scale(0.97); }
+  #moreCoinBtn:disabled{ animation:none; opacity:0.55; cursor:default; transform:none; }
+  @keyframes pulse{
+    0%,100%{ box-shadow:0 0 22px -6px var(--green-glow); }
+    50%{ box-shadow:0 0 34px -2px var(--green-glow); }
+  }
+  .btn-spinner{
+    width:14px; height:14px; border-radius:50%;
+    border:2.5px solid rgba(0,22,10,0.3); border-top-color:#00160A;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .cooldown-text{
+    margin-top:8px; font-size:11px; color:var(--text-2); min-height:16px; letter-spacing:1px;
+  }
+
+  /* ---------- Floating reward particles ---------- */
+  .float-layer{ position:fixed; inset:0; pointer-events:none; z-index:30; }
+  .float-reward{
+    position:absolute;
+    font-family:'VT323', monospace;
+    font-size:22px; color:var(--green);
+    text-shadow:0 0 10px var(--green-glow);
+    animation:floatUp 1.1s ease-out forwards;
+  }
+  @keyframes floatUp{
+    0%{ opacity:0; transform:translateY(0) scale(0.8); }
+    15%{ opacity:1; transform:translateY(-10px) scale(1.05); }
+    100%{ opacity:0; transform:translateY(-70px) scale(1); }
+  }
+
+  .toast{
+    position:fixed; top:16px; left:50%; transform:translateX(-50%) translateY(-140%);
+    background:var(--surface-2); border:1px solid var(--border);
+    color:var(--text-1); font-size:12.5px;
+    padding:10px 16px; border-radius:10px;
+    transition:transform .25s ease; z-index:40;
+    white-space:nowrap; letter-spacing:0.5px;
+  }
+  .toast.show{ transform:translateX(-50%) translateY(0); }
+  .toast.error{ border-color:rgba(255,77,94,0.4); color:#FFB9BF; }
+
+  @media (prefers-reduced-motion: reduce){
+    #moreCoinBtn, .miner-btn{ animation:none; }
+    .balance-card::before, .miner-dot{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrixRain"></canvas>
+
+<div class="app">
+
+  <div class="brand"><span class="dot"></span> MORECOIN</div>
+
+  <div class="balance-card">
+    <div class="miner-box" id="minerBox">
+      <button class="miner-btn" id="minerBtn">Start<br>Miner</button>
+    </div>
+    <div class="balance-label">Coin Balance</div>
+    <div class="balance-number" id="balanceNumber">0</div>
+    <div class="balance-sub">COINS</div>
+  </div>
+
+  <div class="section-title"><span class="arrow">&gt;</span> Store</div>
+
+  <div class="store-item" data-cost="1500" data-name="Google Play $15">
+    <div class="store-icon">GP</div>
+    <div class="store-info">
+      <div class="store-title">Google Play Gift Card</div>
+      <div class="store-desc">$15 value</div>
+    </div>
+    <button class="redeem-btn">
+      <span class="redeem-cost">1,500</span>
+      <span class="redeem-label">Redeem</span>
+    </button>
+  </div>
+
+  <div class="store-item" data-cost="2000" data-name="Google Play $20">
+    <div class="store-icon">GP</div>
+    <div class="store-info">
+      <div class="store-title">Google Play Gift Card</div>
+      <div class="store-desc">$20 value</div>
+    </div>
+    <button class="redeem-btn">
+      <span class="redeem-cost">2,000</span>
+      <span class="redeem-label">Redeem</span>
+    </button>
+  </div>
+
+  <div class="store-item" data-cost="5000" data-name="Google Play $50">
+    <div class="store-icon">GP</div>
+    <div class="store-info">
+      <div class="store-title">Google Play Gift Card</div>
+      <div class="store-desc">$50 value</div>
+    </div>
+    <button class="redeem-btn">
+      <span class="redeem-cost">5,000</span>
+      <span class="redeem-label">Redeem</span>
+    </button>
+  </div>
+
+  <div class="store-item" data-cost="1000" data-name="PayPal $10">
+    <div class="store-icon">PP</div>
+    <div class="store-info">
+      <div class="store-title">PayPal Cash</div>
+      <div class="store-desc">$10 value</div>
+    </div>
+    <button class="redeem-btn">
+      <span class="redeem-cost">1,000</span>
+      <span class="redeem-label">Redeem</span>
+    </button>
+  </div>
+
+</div>
+
+<div class="float-layer" id="floatLayer"></div>
+<div class="toast" id="toast"></div>
+
+<div class="more-coin-wrap">
+  <div class="more-coin-inner">
+    <button id="moreCoinBtn">
+      <span id="btnLabel">Watch ad · +1</span>
+    </button>
+    <div class="cooldown-text" id="cooldownText"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   AD NETWORK INTEGRATION — RichAds (TelegramAdsController)
+   CPC mode: triggerInterstitialBanner(true) skips the creative and sends
+   the user straight to the offer link.
+
+   showRewardedAd must return a Promise that:
+     - resolves  -> interaction counted, reward should be granted
+     - rejects   -> ad/offer failed to load or was closed early
+   ========================================================================= */
+function showRewardedAd(placementId) {
+  return window.TelegramAdsController.triggerInterstitialBanner(true);
+}
+
+// ---------------------------------------------------------------------
+// Matrix rain background
+// ---------------------------------------------------------------------
+(function matrixRain(){
+  const canvas = document.getElementById('matrixRain');
+  const ctx = canvas.getContext('2d');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cols, drops, fontSize = 16;
+
+  function resize(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / fontSize);
+    drops = new Array(cols).fill(0).map(() => Math.random() * -50);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const chars = '01';
+
+  function draw(){
+    ctx.fillStyle = 'rgba(2,4,2,0.14)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = fontSize + 'px monospace';
+    for (let i = 0; i < cols; i++){
+      const char = chars[Math.floor(Math.random() * chars.length)];
+      const y = drops[i] * fontSize;
+      ctx.fillStyle = Math.random() > 0.94 ? '#D9FFE4' : '#00FF66';
+      ctx.fillText(char, i * fontSize, y);
+      if (y > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+
+  if (!reduceMotion){
+    setInterval(draw, 55);
+  }
+})();
+
+// ---------------------------------------------------------------------
+// Per-account persistence (Telegram user id keyed, so a different
+// Telegram account opening this mini app never sees someone else's
+// locally-stored balance)
+// ---------------------------------------------------------------------
+function getTelegramUserId(){
+  try{
+    const u = window.Telegram && window.Telegram.WebApp &&
+              window.Telegram.WebApp.initDataUnsafe &&
+              window.Telegram.WebApp.initDataUnsafe.user;
+    if (u && u.id) return String(u.id);
+  }catch(e){}
+  return 'guest'; // fallback when opened outside Telegram (local testing)
+}
+
+const STORAGE_PREFIX = 'morecoin_v1_';
+const userId = getTelegramUserId();
+const storageKey = STORAGE_PREFIX + userId;
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(storageKey);
+    if (raw){
+      const data = JSON.parse(raw);
+      return {
+        balance: Number(data.balance) || 0,
+        miningActive: !!data.miningActive
+      };
+    }
+  }catch(e){}
+  return { balance: 0, miningActive: false }; // fresh account starts at 0
+}
+
+function saveState(){
+  try{
+    localStorage.setItem(storageKey, JSON.stringify({ balance, miningActive }));
+  }catch(e){}
+}
+
+// ---------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------
+const initial = loadState();
+let balance = initial.balance;
+let miningActive = initial.miningActive;
+let busy = false;
+let miningInterval = null;
+
+const balanceEl   = document.getElementById('balanceNumber');
+const minerBox    = document.getElementById('minerBox');
+const minerBtn    = document.getElementById('minerBtn');
+const floatLayer  = document.getElementById('floatLayer');
+const toastEl     = document.getElementById('toast');
+const moreBtn     = document.getElementById('moreCoinBtn');
+const btnLabel    = document.getElementById('btnLabel');
+const cooldownEl  = document.getElementById('cooldownText');
+
+function renderBalance(){
+  const text = Number.isInteger(balance)
+    ? balance.toLocaleString('en-US')
+    : balance.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+  balanceEl.textContent = text;
+}
+
+function showToast(msg, isError){
+  toastEl.textContent = msg;
+  toastEl.classList.toggle('error', !!isError);
+  toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 1800);
+}
+
+function spawnFloatingReward(amount, originEl){
+  const rect = originEl.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'float-reward';
+  el.textContent = '+' + amount;
+  el.style.left = (rect.left + rect.width / 2 - 14) + 'px';
+  el.style.top  = (rect.top - 6) + 'px';
+  floatLayer.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+// ---------------------------------------------------------------------
+// Passive miner: ~0.000001 coins every 20ms once started
+// ---------------------------------------------------------------------
+function showMinerActiveUI(){
+  minerBox.innerHTML = '<div class="miner-active"><span class="miner-dot"></span>Mining</div>';
+}
+
+function startMining(){
+  if (miningInterval) return;
+  miningActive = true;
+  showMinerActiveUI();
+  miningInterval = setInterval(() => {
+    balance += 0.000001;
+    renderBalance();
+  }, 20);
+  saveState();
+}
+
+if (miningActive){
+  startMining();
+} else {
+  minerBtn.addEventListener('click', startMining);
+}
+
+// ---------------------------------------------------------------------
+// Store redemption
+// ---------------------------------------------------------------------
+document.querySelectorAll('.store-item').forEach(item => {
+  const cost = Number(item.dataset.cost);
+  const name = item.dataset.name;
+  const btn = item.querySelector('.redeem-btn');
+  btn.addEventListener('click', () => {
+    if (balance < cost){
+      showToast('Not enough coins', true);
+      return;
+    }
+    // TODO: call your backend here to actually fulfill/issue the reward
+    // before deducting — this only updates the local balance.
+    balance -= cost;
+    renderBalance();
+    saveState();
+    showToast(name + ' redeemed', false);
+  });
+});
+
+// ---------------------------------------------------------------------
+// Bottom ad button — +1 coin per click, 5s cooldown
+// ---------------------------------------------------------------------
+moreBtn.addEventListener('click', () => {
+  if (busy) return;
+  busy = true;
+  moreBtn.disabled = true;
+  btnLabel.innerHTML = '<span class="btn-spinner"></span> Loading ad...';
+
+  showRewardedAd('rewarded-main')
+    .then(() => {
+      balance += 1;
+      renderBalance();
+      spawnFloatingReward(1, moreBtn);
+      saveState();
+      showToast('+1 coin added', false);
+    })
+    .catch(() => {
+      showToast('Ad failed to load, try again', true);
+    })
+    .finally(() => {
+      btnLabel.textContent = 'Watch ad · +1';
+      startCooldown(5);
+    });
+});
+
+function startCooldown(seconds){
+  let s = seconds;
+  const tick = () => {
+    if (s <= 0){
+      cooldownEl.textContent = '';
+      moreBtn.disabled = false;
+      busy = false;
+      return;
+    }
+    cooldownEl.textContent = 'Try again in ' + s + 's';
+    s -= 1;
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+// ---------------------------------------------------------------------
+// Autosave
+// ---------------------------------------------------------------------
+setInterval(saveState, 1000);
+window.addEventListener('beforeunload', saveState);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveState(); });
+
+renderBalance();
+</script>
+
+</body>
+</html>
