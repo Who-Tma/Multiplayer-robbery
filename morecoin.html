@@ -262,6 +262,19 @@
     border:0; background:#050505;
   }
 
+  .ad-overlay-msg{
+    text-align:center;
+    padding:0 30px;
+  }
+  .ad-overlay-msg-title{
+    font-family:'Share Tech Mono', monospace;
+    font-size:15px; letter-spacing:1px; color:var(--text-1);
+    margin-bottom:8px;
+  }
+  .ad-overlay-msg-sub{
+    font-size:12px; color:var(--text-2); letter-spacing:0.5px;
+  }
+
   .ad-overlay-topbar{
     position:absolute; top:0; left:0; right:0;
     display:flex; align-items:center; justify-content:space-between;
@@ -410,7 +423,10 @@
 <div class="toast" id="toast"></div>
 
 <div class="ad-overlay" id="adOverlay">
-  <iframe id="adIframe" src="about:blank" allow="autoplay" referrerpolicy="no-referrer-when-downgrade"></iframe>
+  <div class="ad-overlay-msg" id="adOverlayMsg">
+    <div class="ad-overlay-msg-title">Sponsored tab opened</div>
+    <div class="ad-overlay-msg-sub">Come back here after viewing it</div>
+  </div>
   <div class="ad-overlay-topbar">
     <div class="ad-overlay-label">Sponsored</div>
     <div class="ad-close-wrap">
@@ -618,13 +634,16 @@ document.querySelectorAll('.store-item').forEach(item => {
 
 // ---------------------------------------------------------------------
 // Fallback ad overlay (shown when RichAds errors or has no fill)
-// Opens FALLBACK_AD_URL in an iframe, runs a 15s countdown top-right,
-// then swaps the ring for a close (×) button. Closing grants the reward.
+// Opens FALLBACK_AD_URL in Telegram's own browser (openLink) instead of
+// an iframe — ad networks block being framed (X-Frame-Options/CSP), so
+// an iframe just renders blank. openLink is the supported way to open
+// external links from inside a Telegram Mini App.
+// Meanwhile a 15s countdown runs on this overlay; once it hits 0 the
+// ring turns into a close (×) button and closing grants the reward.
 // ---------------------------------------------------------------------
 const FALLBACK_AD_URL = 'https://www.profitableratecpmnetwork.com/ytjxef4i8a?key=3b0ff046d792dd2fee552a7fe74d7077';
 
 const adOverlay   = document.getElementById('adOverlay');
-const adIframe    = document.getElementById('adIframe');
 const adTimerRing = document.getElementById('adTimerRing');
 const adRingFg    = document.getElementById('adRingFg');
 const adTimerNum  = document.getElementById('adTimerNum');
@@ -634,6 +653,17 @@ const adCloseHint = document.getElementById('adCloseHint');
 const RING_R = 14.5;
 const RING_CIRC = 2 * Math.PI * RING_R;
 adRingFg.style.strokeDasharray = RING_CIRC.toFixed(2);
+
+function openExternalLink(url){
+  try{
+    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink){
+      window.Telegram.WebApp.openLink(url, { try_instant_view: false });
+      return;
+    }
+  }catch(e){}
+  // Outside Telegram (local testing) — open a normal tab instead.
+  window.open(url, '_blank', 'noopener');
+}
 
 function openFallbackAd(){
   return new Promise((resolve) => {
@@ -645,14 +675,14 @@ function openFallbackAd(){
     adTimerRing.style.display = 'flex';
     adCloseBtn.style.display = 'none';
     adCloseHint.classList.remove('show');
-    adIframe.src = FALLBACK_AD_URL;
     adOverlay.classList.add('show');
+
+    openExternalLink(FALLBACK_AD_URL);
 
     function finishAndGrant(){
       if (closedByUser) return;
       closedByUser = true;
       adOverlay.classList.remove('show');
-      adIframe.src = 'about:blank';
       adCloseBtn.removeEventListener('click', finishAndGrant);
       resolve();
     }
